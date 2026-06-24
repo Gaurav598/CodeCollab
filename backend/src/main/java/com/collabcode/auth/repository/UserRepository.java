@@ -10,6 +10,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByUsername(String username);
     boolean existsByEmail(String email);
     boolean existsByUsername(String username);
-    /** Lookup by email OR username — used for login identifier resolution */
-    Optional<User> findByEmailOrUsername(String email, String username);
+    /** Lookup by email OR username — used for login identifier resolution (Case Insensitive) */
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:identifier) OR LOWER(u.username) = LOWER(:identifier)")
+    Optional<User> findByIdentifierIgnoreCase(@org.springframework.data.repository.query.Param("identifier") String identifier);
 }

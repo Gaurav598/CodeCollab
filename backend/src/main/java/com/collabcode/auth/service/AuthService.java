@@ -77,7 +77,7 @@ public class AuthService {
     @Transactional
     public Map<String, Object> login(String identifier, String rawPassword,
                                      HttpServletResponse response) {
-        User user = userRepository.findByEmailOrUsername(identifier, identifier)
+        User user = userRepository.findByIdentifierIgnoreCase(identifier)
                 .orElseThrow(() -> ApiException.unauthorized("INVALID_CREDENTIALS", "Invalid credentials"));
         if (user.getPasswordHash() == null
                 || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
