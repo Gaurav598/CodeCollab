@@ -3,7 +3,7 @@
  * Security verification suite for the sandbox executor.
  * Requires Docker daemon and collabcode/sandbox-runner:latest image.
  */
-import { executeCode } from "./executor.js";
+import { checkDockerHealth, executeCode } from "./executor.js";
 
 interface TestCase {
   name: string;
@@ -64,6 +64,11 @@ except Exception as e:
 ];
 
 async function main() {
+  if (!(await checkDockerHealth())) {
+    console.warn("SKIP: Docker daemon unavailable; sandbox security tests require Docker.");
+    return;
+  }
+
   let passed = 0;
   let failed = 0;
 

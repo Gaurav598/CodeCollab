@@ -4,14 +4,23 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Sidebar } from "@/components/workspace/Sidebar";
 import { Tabs } from "@/components/workspace/Tabs";
-import { CollabEditor } from "@/components/editor/CollabEditor";
-import { getRoom, Room } from "@/services/workspaceService";
+import dynamic from "next/dynamic";
+
+const CollabEditor = dynamic(
+  () => import("@/components/editor/CollabEditor").then((m) => m.CollabEditor),
+  { ssr: false }
+);
+import { CommandPalette } from "@/components/workspace/CommandPalette";
+import { NotificationBell } from "@/components/communication/NotificationBell";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { getRoom, Project, Room } from "@/services/workspaceService";
 import { useAuthStore } from "@/store/authStore";
 
 export default function RoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const { user } = useAuthStore();
   const [room, setRoom] = useState<Room | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -53,11 +62,26 @@ export default function RoomPage() {
 
   return (
     <div className="flex w-full h-full">
-      <Sidebar roomCode={room.roomCode} userRole={userRole} />
+      <Sidebar roomCode={room.roomCode} userRole={userRole} onProjectsLoaded={setProjects} />
       <div className="flex-1 flex flex-col min-w-0">
-        <Tabs />
+        <div className="flex h-11 items-center justify-between border-b border-border bg-background/95 px-3">
+          <Tabs />
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded border border-border px-2 py-1 text-xs text-muted-foreground md:inline">
+              Cmd/Ctrl K
+            </span>
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
+        </div>
         <CollabEditor roomId={room.id} />
       </div>
+      <CommandPalette
+        projects={projects}
+        roomCode={room.roomCode}
+        onRunCode={() => window.dispatchEvent(new Event("collabcode:run-active-file"))}
+        onFocusAi={() => undefined}
+      />
     </div>
   );
 }

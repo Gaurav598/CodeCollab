@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { runCode, ExecutionResult } from "@/services/executionService";
 
 interface ExecutionPanelProps {
@@ -15,7 +15,8 @@ export function ExecutionPanel({ fileId, language, getCode, disabled }: Executio
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
 
-  async function handleRun() {
+  const handleRun = useCallback(async () => {
+    if (disabled || running) return;
     setRunning(true);
     setError(null);
     setResult(null);
@@ -32,7 +33,15 @@ export function ExecutionPanel({ fileId, language, getCode, disabled }: Executio
     } finally {
       setRunning(false);
     }
-  }
+  }, [disabled, fileId, getCode, language, running]);
+
+  useEffect(() => {
+    function runFromPalette() {
+      void handleRun();
+    }
+    window.addEventListener("collabcode:run-active-file", runFromPalette);
+    return () => window.removeEventListener("collabcode:run-active-file", runFromPalette);
+  }, [handleRun]);
 
   return (
     <div className="border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-[#252526] flex flex-col min-h-[180px] max-h-[240px]">

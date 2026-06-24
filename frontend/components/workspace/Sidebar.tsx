@@ -8,7 +8,7 @@ import { ChevronDown, Plus, Settings } from "lucide-react";
 
 import { RoomSettings } from "./RoomSettings";
 
-export function Sidebar({ roomCode, userRole }: { roomCode: string, userRole: string }) {
+export function Sidebar({ roomCode, userRole, onProjectsLoaded }: { roomCode: string, userRole: string, onProjectsLoaded?: (projects: Project[]) => void }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const { activeProjectId, setActiveProject } = useWorkspaceStore();
   const [loading, setLoading] = useState(true);
@@ -22,6 +22,7 @@ export function Sidebar({ roomCode, userRole }: { roomCode: string, userRole: st
     try {
       const data = await getRoomProjects(roomCode);
       setProjects(data);
+      onProjectsLoaded?.(data);
       if (data.length > 0 && !activeProjectId) {
         setActiveProject(data[0].id);
       }
@@ -36,7 +37,9 @@ export function Sidebar({ roomCode, userRole }: { roomCode: string, userRole: st
     const name = prompt("Project Name:");
     if (name) {
       const newProj = await createProject(roomCode, name);
-      setProjects([...projects, newProj]);
+      const nextProjects = [...projects, newProj];
+      setProjects(nextProjects);
+      onProjectsLoaded?.(nextProjects);
       setActiveProject(newProj.id);
     }
   }

@@ -70,7 +70,8 @@ public class SecurityConfig {
                     "/auth/github/**",
                     "/oauth2/**",
                     "/health",
-                    "/actuator/**"
+                    "/actuator/**",
+                    "/ws/**"
                 ).permitAll()
                 .requestMatchers("/internal/**").authenticated()
                 .anyRequest().authenticated()

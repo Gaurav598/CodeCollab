@@ -7,11 +7,11 @@ export function Tabs() {
   const { openTabs, activeTabId, setActiveTab, closeTab } = useWorkspaceStore();
 
   if (openTabs.length === 0) {
-    return <div className="h-10 border-b border-border bg-muted/10 flex items-center px-4 text-sm text-muted-foreground italic">No open files</div>;
+    return <div className="flex h-full min-w-0 flex-1 items-center px-1 text-sm italic text-muted-foreground">No open files</div>;
   }
 
   return (
-    <div className="h-10 border-b border-border bg-muted/10 flex overflow-x-auto">
+    <div className="flex h-full min-w-0 flex-1 overflow-x-auto">
       {openTabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         const filename = tab.path.split('/').pop();
@@ -20,9 +20,9 @@ export function Tabs() {
           <div
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center px-4 border-r border-border cursor-pointer min-w-fit transition-colors group ${
+            className={`flex min-w-fit cursor-pointer items-center border-r border-border px-4 transition-colors group ${
               isActive 
-                ? 'bg-background border-b-2 border-b-primary text-foreground' 
+                ? 'bg-muted/40 border-b-2 border-b-primary text-foreground' 
                 : 'text-muted-foreground hover:bg-muted'
             }`}
           >

@@ -3,7 +3,7 @@
  * Smoke tests for all supported language runners.
  * Requires Docker and collabcode/sandbox-runner:latest.
  */
-import { executeCode } from "./executor.js";
+import { checkDockerHealth, executeCode } from "./executor.js";
 
 const samples = [
   {
@@ -54,6 +54,11 @@ func main() {
 ];
 
 async function main() {
+  if (!(await checkDockerHealth())) {
+    console.warn("SKIP: Docker daemon unavailable; language runner tests require Docker.");
+    return;
+  }
+
   let passed = 0;
   let failed = 0;
 
