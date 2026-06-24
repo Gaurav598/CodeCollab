@@ -6,7 +6,7 @@
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 3000",
-    "start:e2e": "next start --hostname 0.0.0.0 --port 3001",
+    "start:e2e": "next start --hostname 0.0.0.0 --port 3002",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
