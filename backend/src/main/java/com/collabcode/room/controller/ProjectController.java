@@ -40,6 +40,23 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.getProject(projectId, userId(principal)));
     }
 
+    /** GET /projects?roomCode=... */
+    @GetMapping
+    public ResponseEntity<java.util.List<Map<String, Object>>> getProjects(
+            @RequestParam String roomCode,
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(projectService.getProjectsForRoom(roomCode, userId(principal)));
+    }
+
+    /** PATCH /projects/:projectId */
+    @PatchMapping("/{projectId}")
+    public ResponseEntity<Map<String, Object>> patchProject(
+            @PathVariable UUID projectId,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(projectService.patchProject(projectId, body.get("name"), userId(principal)));
+    }
+
     /** DELETE /projects/:projectId */
     @DeleteMapping("/{projectId}")
     public ResponseEntity<Map<String, Object>> deleteProject(

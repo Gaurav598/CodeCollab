@@ -63,3 +63,8 @@ collabcode:
     refresh-token-expiration-days: ${REFRESH_TOKEN_EXPIRATION_DAYS:30}
     service-jwt-secret: ${SERVICE_JWT_SECRET:replace-with-a-strong-service-secret}
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  sandbox:
+    service-url: ${SANDBOX_SERVICE_URL:http://localhost:3001}
+    default-timeout-ms: ${SANDBOX_DEFAULT_TIMEOUT_MS:5000}
+    max-timeout-ms: ${SANDBOX_MAX_TIMEOUT_MS:10000}
+    rate-limit-per-minute: ${SANDBOX_RATE_LIMIT_PER_MINUTE:30}

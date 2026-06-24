@@ -15,6 +15,7 @@ import java.util.UUID;
 public interface RoomMemberRepository extends JpaRepository<RoomMember, UUID> {
     Optional<RoomMember> findByRoomIdAndUserId(UUID roomId, UUID userId);
     List<RoomMember> findAllByRoomId(UUID roomId);
+    List<RoomMember> findAllByUserId(UUID userId);
     boolean existsByRoomIdAndUserId(UUID roomId, UUID userId);
 
     @Query("SELECT m.role FROM RoomMember m WHERE m.room.id = :roomId AND m.user.id = :userId")

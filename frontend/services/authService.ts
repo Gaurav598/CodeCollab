@@ -16,7 +16,7 @@ export function getAccessToken(): string | null {
 }
 
 /** Base fetch wrapper that injects Authorization header when a token exists. */
-async function apiFetch<T>(
+export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {

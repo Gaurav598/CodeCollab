@@ -53,6 +53,28 @@ public class ProjectService {
         return projectDto(project, files);
     }
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getProjectsForRoom(String roomCode, UUID userId) {
+        Room room = roomRepository.findByRoomCode(roomCode)
+                .orElseThrow(() -> ApiException.notFound("ROOM_NOT_FOUND", "Room not found"));
+        requireMember(room.getId(), userId);
+        return projectRepository.findAllByRoomId(room.getId()).stream()
+                .map(p -> projectDto(p, fileRepository.findAllByProjectId(p.getId())))
+                .toList();
+    }
+
+    @Transactional
+    public Map<String, Object> patchProject(UUID projectId, String newName, UUID userId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> ApiException.notFound("PROJECT_NOT_FOUND", "Project not found"));
+        requireEditor(project.getRoom().getId(), userId);
+        if (newName != null && !newName.isBlank()) {
+            project.setName(newName);
+        }
+        projectRepository.save(project);
+        return projectDto(project, fileRepository.findAllByProjectId(project.getId()));
+    }
+
     @Transactional
     public void deleteProject(UUID projectId, UUID userId) {
         Project project = projectRepository.findById(projectId)

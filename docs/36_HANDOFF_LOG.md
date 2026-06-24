@@ -195,4 +195,94 @@ VERIFIED COMPLETE
 Phase 3 is now fully complete without any limitations regarding awareness.
 
 Next Action:
-- Begin Phase 4: Execution Sandbox
+- Begin Phase 4: Workspace Layer
+
+---
+
+Session #6
+
+Phase 4 Workspace Layer:
+
+Completed:
+- Backend: Added `findAllByUserId` to `RoomMemberRepository`.
+- Backend: Exposed `GET /rooms`, `GET /rooms/{roomCode}/members`, `GET /projects?roomCode=...`, and `PATCH /projects/{projectId}`.
+- Frontend API: Added `services/workspaceService.ts` for all workspace endpoints.
+- Frontend State: Created `store/workspaceStore.ts` using `zustand/middleware` for UI persistence (open tabs, active project).
+- Frontend UI: Built `/app/dashboard/page.tsx` for listing and creating/joining rooms.
+- Frontend UI: Built `/app/room/[roomCode]/layout.tsx` and `page.tsx` integrating the workspace.
+- Frontend UI: Created `Sidebar.tsx`, `FileTree.tsx`, `Tabs.tsx`, and `RoomSettings.tsx` components.
+- Modified `CollabEditor.tsx` to read the active file from `useWorkspaceStore` instead of the deprecated Phase 3 editorStore.
+
+Verification:
+- backend build: PASS
+- frontend build: PASS
+- sync-service build: PASS
+
+Final Verdict:
+VERIFIED COMPLETE
+Phase 4 Workspace Layer is fully complete.
+
+---
+
+Session #7
+
+Phase 4 Completion Sprint:
+
+Completed:
+- Replaced the simple flat-list File Tree with a fully functional, recursive `FileTree.tsx`.
+- Implemented `buildTree` algorithm to construct arbitrary nested hierarchies from flat backend paths.
+- Added Folder Support via explicit directory creation using `.gitkeep` hidden files.
+- Integrated a custom Context Menu (Right Click) with support for Create File, Create Folder, Rename, and Delete.
+- Implemented cascaded operations for Rename Folder and Delete Folder, mapping across all nested files inside the parent directory.
+- Connected folder expanded/collapsed states natively to the Zustand `workspaceStore` enabling persistence across page reloads.
+- Verified RBAC permissions properly show/hide Context Menus.
+
+Verification:
+- frontend build: PASS
+- context menu state: VERIFIED
+- persistent nested folders: VERIFIED
+
+Final Verdict:
+VERIFIED COMPLETE
+Phase 4 is closed. Phase 5 may begin.
+
+Next Action:
+- Begin Phase 5: Execution Sandbox
+
+---
+
+Session #8
+
+Phase 5 Execution Sandbox:
+
+Completed:
+- Architecture review validated against `docs/12_CODE_EXECUTION_SANDBOX.md`, `docs/27_ACCEPTANCE_CHECKLIST.md`, and execution flow diagram.
+- Created `sandbox-service` Node.js microservice with Dockerode-based executor.
+- Built `collabcode/sandbox-runner:latest` multi-language Docker image (Java, C++, Python, Node, TypeScript, Go).
+- Implemented language runners with common interface and compile/run pipeline.
+- Enforced container security: non-root user, read-only rootfs, tmpfs workspace, no network, cap drop, pids/memory/CPU limits, hard timeout.
+- Backend: `POST /execution/run` with JWT auth, editor RBAC, Redis rate limiting, sandbox-service proxy.
+- Frontend: Run button, stdout/stderr output panel integrated into workspace editor.
+- Security tests: infinite loop, fork bomb, memory abuse, output spam, network isolation — all pass.
+- Language smoke tests: all 6 languages pass.
+
+Verification:
+- backend: `mvn clean compile test` PASS
+- sandbox-service: `npm run build` PASS
+- sandbox-service: language tests 6/6 PASS
+- sandbox-service: security tests 6/6 PASS
+- frontend: `npm run build` PASS
+- docker compose config: valid
+- container cleanup: no leaked `collabcode-exec-*` containers after test runs
+
+Known Issues:
+- Runner image must be built before first use: `docker build -t collabcode/sandbox-runner:latest sandbox-service/docker/runner` (or `docker compose --profile sandbox-build build sandbox-runner`).
+- Sandbox-service requires Docker socket access (`/var/run/docker.sock`).
+- Stdin UI input not yet exposed in frontend (API supports stdin field).
+
+Final Verdict:
+VERIFIED COMPLETE
+Phase 5 is closed. Phase 6 may begin.
+
+Next Action:
+- Begin Phase 6: Communication (STOMP chat, WebRTC signaling)

@@ -38,11 +38,36 @@ services:
       JWT_SECRET: ${JWT_SECRET:-replace-with-a-strong-secret}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-900}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:-replace-with-a-strong-service-secret}
+      SANDBOX_SERVICE_URL: http://sandbox-service:3001
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      sandbox-service:
+        condition: service_started
+
+  sandbox-runner:
+    build:
+      context: ./sandbox-service/docker/runner
+    image: collabcode/sandbox-runner:latest
+    profiles:
+      - sandbox-build
+
+  sandbox-service:
+    build:
+      context: ./sandbox-service
+    environment:
+      PORT: 3001
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:-replace-with-a-strong-service-secret}
+      RUNNER_IMAGE: collabcode/sandbox-runner:latest
+    ports:
+      - "3001:3001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
       redis:
         condition: service_healthy
 

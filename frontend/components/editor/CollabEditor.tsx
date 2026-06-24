@@ -1,22 +1,23 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import Editor, { useMonaco } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import { MonacoBinding } from 'y-monaco';
-import { useEditorStore } from '../../store/editorStore';
+import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useYjsDoc } from '../../hooks/useYjsDoc';
 import { useAwareness } from '../../hooks/useAwareness';
 import { RemoteCursors } from './RemoteCursors';
 import { PresencePanel } from './PresencePanel';
+import { ExecutionPanel } from '../workspace/ExecutionPanel';
 
 interface CollabEditorProps {
   roomId: string;
 }
 
 export function CollabEditor({ roomId }: CollabEditorProps) {
-  const activeFileId = useEditorStore(state => state.activeFileId);
-  const openFiles = useEditorStore(state => state.openFiles);
+  const activeFileId = useWorkspaceStore(state => state.activeTabId);
+  const openFiles = useWorkspaceStore(state => state.openTabs);
   
   const activeFile = openFiles.find(f => f.id === activeFileId);
   
@@ -25,6 +26,13 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
   
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const bindingRef = useRef<MonacoBinding | null>(null);
+
+  const getCode = useCallback(() => {
+    if (doc) {
+      return doc.getText('monaco').toString();
+    }
+    return editorRef.current?.getValue() ?? '';
+  }, [doc]);
 
   const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
@@ -109,6 +117,13 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
         {/* Render remote cursor decorations */}
         <RemoteCursors editor={editorRef.current} users={users} />
       </div>
+
+      <ExecutionPanel
+        fileId={activeFile.id}
+        language={activeFile.language}
+        getCode={getCode}
+        disabled={!connected}
+      />
     </div>
   );
 }

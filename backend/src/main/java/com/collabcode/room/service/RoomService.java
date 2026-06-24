@@ -56,6 +56,30 @@ public class RoomService {
         return roomDto(room);
     }
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getUserRooms(UUID userId) {
+        return roomMemberRepository.findAllByUserId(userId).stream()
+                .map(member -> {
+                    Map<String, Object> dto = new HashMap<>(roomDto(member.getRoom()));
+                    dto.put("role", member.getRole().name());
+                    return dto;
+                })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getRoomMembers(String roomCode, UUID requestingUserId) {
+        Room room = findByCode(roomCode);
+        requireMember(room.getId(), requestingUserId);
+        return roomMemberRepository.findAllByRoomId(room.getId()).stream()
+                .map(member -> Map.<String, Object>of(
+                        "userId", member.getUser().getId().toString(),
+                        "username", member.getUser().getUsername(),
+                        "role", member.getRole().name()
+                ))
+                .toList();
+    }
+
     @Transactional
     public Map<String, Object> joinRoom(String roomCode, UUID userId) {
         Room room = findByCode(roomCode);
@@ -117,6 +141,12 @@ public class RoomService {
     private Room findByCode(String roomCode) {
         return roomRepository.findByRoomCode(roomCode)
                 .orElseThrow(() -> ApiException.notFound("ROOM_NOT_FOUND", "Room not found"));
+    }
+
+    private void requireMember(UUID roomId, UUID userId) {
+        if (!roomMemberRepository.existsByRoomIdAndUserId(roomId, userId)) {
+            throw ApiException.forbidden("FORBIDDEN", "Not a member of this room");
+        }
     }
 
     private void requireOwner(UUID roomId, UUID userId) {

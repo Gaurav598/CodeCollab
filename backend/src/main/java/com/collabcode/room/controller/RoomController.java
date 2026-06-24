@@ -35,12 +35,27 @@ public class RoomController {
                 .body(roomService.createRoom(userId(principal), request.visibility()));
     }
 
+    /** GET /rooms */
+    @GetMapping
+    public ResponseEntity<java.util.List<Map<String, Object>>> getUserRooms(
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(roomService.getUserRooms(userId(principal)));
+    }
+
     /** GET /rooms/:roomCode */
     @GetMapping("/{roomCode}")
     public ResponseEntity<Map<String, Object>> getRoom(
             @PathVariable String roomCode,
             @AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.ok(roomService.getRoom(roomCode, userId(principal)));
+    }
+
+    /** GET /rooms/:roomCode/members */
+    @GetMapping("/{roomCode}/members")
+    public ResponseEntity<java.util.List<Map<String, Object>>> getRoomMembers(
+            @PathVariable String roomCode,
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(roomService.getRoomMembers(roomCode, userId(principal)));
     }
 
     /** POST /rooms/:roomCode/join */
