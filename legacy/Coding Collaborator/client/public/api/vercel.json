@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "api/sitemap.js": {
-      "runtime": "nodejs18.x"
-    }
-  }
-}
