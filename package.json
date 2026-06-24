@@ -1,0 +1,20 @@
+{
+  "name": "collabcode",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CollabCode monorepo foundation",
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:sync": "npm --prefix sync-service run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:sync": "npm --prefix sync-service run build",
+    "build:backend": "cd backend && mvn -q -DskipTests package",
+    "test:frontend": "npm --prefix frontend run lint",
+    "test:sync": "npm --prefix sync-service run test",
+    "test:backend": "cd backend && mvn test"
+  },
+  "workspaces": [
+    "frontend",
+    "sync-service"
+  ]
+}

@@ -1,0 +1,65 @@
+erDiagram
+    Users {
+        UUID id PK
+        string username
+        string email
+        string password_hash
+        string provider
+        string avatar_url
+        timestamp created_at
+    }
+
+    Rooms {
+        UUID id PK
+        string room_code
+        UUID owner_id FK
+        string visibility
+        timestamp created_at
+    }
+
+    RoomMembers {
+        UUID id PK
+        UUID room_id FK
+        UUID user_id FK
+        string role
+        timestamp joined_at
+    }
+
+    Projects {
+        UUID id PK
+        UUID room_id FK
+        string name
+        timestamp created_at
+    }
+
+    Files {
+        UUID id PK
+        UUID project_id FK
+        string path
+        text content
+        string language
+    }
+
+    Messages {
+        UUID id PK
+        UUID room_id FK
+        UUID sender_id FK
+        text message
+        timestamp created_at
+    }
+
+    Sessions {
+        UUID id PK
+        UUID user_id FK
+        string refresh_token
+        timestamp expires_at
+    }
+
+    Users ||--o{ Rooms : owns
+    Users ||--o{ RoomMembers : "is member via"
+    Rooms ||--o{ RoomMembers : has
+    Rooms ||--o{ Projects : contains
+    Projects ||--o{ Files : contains
+    Rooms ||--o{ Messages : has
+    Users ||--o{ Messages : sends
+    Users ||--o{ Sessions : has

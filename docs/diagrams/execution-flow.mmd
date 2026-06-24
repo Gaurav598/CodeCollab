@@ -1,0 +1,31 @@
+sequenceDiagram
+    participant U as User
+    participant F as Next.js Frontend
+    participant S as Spring Boot Backend
+    participant Redis as Redis (rate limit counter)
+    participant Docker as Docker Engine
+
+    U->>F: Click "Run"
+    F->>S: POST /execution/run (JWT + code + language)
+    S->>S: Validate JWT, check RBAC (Owner/Editor only)
+    S->>Redis: Check + increment per-user rate limit counter
+
+    alt Rate limit exceeded
+        S->>F: 429 Too Many Requests
+        F->>U: Show rate-limit error
+    else Within limit
+        S->>Docker: Create ephemeral container (memory cap, CPU cap, no network)
+        Docker->>Docker: Inject code + stdin
+        Docker->>Docker: Execute with hard timeout
+
+        alt Timeout exceeded
+            Docker->>Docker: Force-kill container
+            S->>F: Return timeout error + partial output if any
+        else Completed normally
+            Docker->>S: stdout, stderr, exit code
+            S->>F: Return execution result
+        end
+
+        S->>Docker: Destroy container (always, regardless of outcome)
+        F->>U: Display run output
+    end

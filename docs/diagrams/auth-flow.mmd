@@ -1,0 +1,33 @@
+sequenceDiagram
+    participant U as User
+    participant F as Next.js Frontend
+    participant S as Spring Boot Backend
+    participant DB as PostgreSQL
+    participant P as OAuth Provider (Google/GitHub)
+
+    alt OAuth login
+        U->>F: Click "Sign in with Google/GitHub"
+        F->>P: Redirect to provider consent screen
+        P->>F: Redirect back with auth code
+        F->>S: Send auth code
+        S->>P: Exchange code for identity
+        P->>S: Confirm identity (email, name, avatar)
+        S->>DB: Find or create User record
+    else Email/Username + Password
+        U->>F: Submit credentials
+        F->>S: POST /auth/login
+        S->>DB: Look up user, verify password hash (BCrypt)
+    end
+
+    S->>DB: Create Session (store hashed refresh token)
+    S->>F: Return JWT access token + httpOnly refresh cookie
+    F->>U: Logged in, redirect to dashboard
+
+    Note over F,S: On subsequent requests
+    F->>S: Request with Authorization: Bearer <access token>
+    S->>S: Validate JWT signature + expiry
+    alt Access token expired
+        F->>S: POST /auth/refresh (refresh cookie sent automatically)
+        S->>DB: Validate refresh token against Sessions table
+        S->>F: New access token
+    end
