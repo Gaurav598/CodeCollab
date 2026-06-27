@@ -16,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Collections;
 
 public class ServiceJwtFilter extends OncePerRequestFilter {
@@ -43,9 +44,11 @@ public class ServiceJwtFilter extends OncePerRequestFilter {
         }
 
         String token = header.substring(7);
-        if (properties.getServiceJwtSecret().equals(token)) {
+        byte[] expected = properties.getServiceJwtSecret().getBytes(StandardCharsets.UTF_8);
+        byte[] provided = token.getBytes(StandardCharsets.UTF_8);
+        if (MessageDigest.isEqual(expected, provided)) {
             // Valid service token. Grant full access but not tied to a specific user.
-            UsernamePasswordAuthenticationToken auth = 
+            UsernamePasswordAuthenticationToken auth =
                 new UsernamePasswordAuthenticationToken("sync-service", null, Collections.emptyList());
             SecurityContextHolder.getContext().setAuthentication(auth);
             filterChain.doFilter(request, response);

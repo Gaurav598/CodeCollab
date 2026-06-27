@@ -27,6 +27,7 @@ public abstract class AbstractHttpAiProviderAdapter implements AiProviderAdapter
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public String generate(AiGatewayRequest request) {
         if (!available()) {
             throw new IllegalStateException(name() + " is not configured");
@@ -40,8 +41,22 @@ public abstract class AbstractHttpAiProviderAdapter implements AiProviderAdapter
                 "temperature", 0.2
         );
         try {
-            Object response = restTemplate.postForObject(provider.getBaseUrl(), new HttpEntity<>(body, headers), Object.class);
-            return response == null ? "" : response.toString();
+            @SuppressWarnings("rawtypes")
+            Map response = restTemplate.postForObject(provider.getBaseUrl(), new HttpEntity<>(body, headers), Map.class);
+            if (response == null) return "";
+            // Extract choices[0].message.content from standard OpenAI-compatible response
+            Object choicesObj = response.get("choices");
+            if (choicesObj instanceof List<?> choices && !choices.isEmpty()) {
+                Object choice = choices.get(0);
+                if (choice instanceof Map<?, ?> choiceMap) {
+                    Object messageObj = choiceMap.get("message");
+                    if (messageObj instanceof Map<?, ?> messageMap) {
+                        Object content = messageMap.get("content");
+                        return content != null ? content.toString() : "";
+                    }
+                }
+            }
+            return "";
         } catch (RestClientException ex) {
             throw new IllegalStateException(name() + " request failed", ex);
         }

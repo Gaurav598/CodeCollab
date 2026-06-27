@@ -57,9 +57,11 @@ public class AiGatewayService {
         if (configured == null || configured.isEmpty()) {
             return adapters.keySet().stream().sorted(Comparator.naturalOrder()).toList();
         }
-        if (!configured.contains(properties.getDefaultProvider())) {
-            configured.add(0, properties.getDefaultProvider());
+        // Defensive copy — do not mutate the list stored inside AiProperties
+        List<String> ordered = new java.util.ArrayList<>(configured);
+        if (!ordered.contains(properties.getDefaultProvider())) {
+            ordered.add(0, properties.getDefaultProvider());
         }
-        return configured;
+        return ordered;
     }
 }

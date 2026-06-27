@@ -15,14 +15,21 @@ import { NotificationBell } from "@/components/communication/NotificationBell";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { getRoom, Project, Room } from "@/services/workspaceService";
 import { useAuthStore } from "@/store/authStore";
+import { useWorkspaceStore } from "@/store/workspaceStore";
 
 export default function RoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const { user } = useAuthStore();
+  const closeAllTabs = useWorkspaceStore(state => state.closeAllTabs);
   const [room, setRoom] = useState<Room | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Clear stale tabs from a previous room session to prevent 404s on Yjs doc connect
+  useEffect(() => {
+    closeAllTabs();
+  }, [roomCode]);
 
   useEffect(() => {
     if (user && roomCode) {
@@ -55,10 +62,9 @@ export default function RoomPage() {
     );
   }
 
-  // userRole is implicitly editor if owner, otherwise we'd fetch actual role.
-  // For UI permissions in Phase 4, we assume user is owner/editor if they can see the room.
+  // userRole from API response; fall back to viewer for non-members
   const isOwner = user?.id === room.ownerId;
-  const userRole = isOwner ? "owner" : "editor";
+  const userRole = isOwner ? "owner" : (room.role ?? "viewer");
 
   return (
     <div className="flex w-full h-full">

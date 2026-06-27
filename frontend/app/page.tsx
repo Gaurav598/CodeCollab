@@ -1,3 +1,5 @@
+"use client";
+
 import { ArrowRight, Bot, Code2, GitBranch, Lock, Play, Radio, Sparkles, Users } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
@@ -10,7 +12,11 @@ const features = [
 
 const aiFeatures = ["Autocomplete", "AI Chat", "Refactor", "Bug Detection", "Explain", "Review", "Test Generation", "Documentation"];
 
+import { useAuthStore } from "@/store/authStore";
+
 export default function HomePage() {
+  const { isAuthenticated } = useAuthStore();
+  
   return (
     <main className="min-h-screen bg-background text-foreground">
       <nav className="fixed left-0 right-0 top-0 z-30 border-b border-border/70 bg-background/80 backdrop-blur">
@@ -20,12 +26,20 @@ export default function HomePage() {
             CollabCode
           </a>
           <div className="flex items-center gap-2">
-            <a href="/login" className="hidden rounded border border-border px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground sm:inline-flex">
-              Log in
-            </a>
-            <a href="/register" className="inline-flex items-center gap-2 rounded bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
-              Start <ArrowRight size={15} />
-            </a>
+            {isAuthenticated ? (
+              <a href="/dashboard" className="inline-flex items-center gap-2 rounded bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
+                Dashboard <ArrowRight size={15} />
+              </a>
+            ) : (
+              <>
+                <a href="/login" className="hidden rounded border border-border px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground sm:inline-flex">
+                  Log in
+                </a>
+                <a href="/register" className="inline-flex items-center gap-2 rounded bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
+                  Start <ArrowRight size={15} />
+                </a>
+              </>
+            )}
             <ThemeToggle />
           </div>
         </div>

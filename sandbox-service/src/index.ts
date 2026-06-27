@@ -1,4 +1,5 @@
 import express from "express";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { config } from "./config.js";
 import { checkDockerHealth, executeCode } from "./executor.js";
@@ -14,7 +15,9 @@ function requireServiceAuth(req: express.Request, res: express.Response, next: e
     return;
   }
   const token = header.slice(7);
-  if (token !== config.SERVICE_JWT_SECRET) {
+  const expected = Buffer.from(config.SERVICE_JWT_SECRET);
+  const provided = Buffer.from(token);
+  if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) {
     res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Invalid service token" } });
     return;
   }
@@ -53,6 +56,13 @@ app.post("/execute", requireServiceAuth, async (req, res) => {
   res.status(200).json(result);
 });
 
-app.listen(config.PORT, () => {
+const server = app.listen(config.PORT, () => {
   console.log(`sandbox-service listening on port ${config.PORT}`);
 });
+
+function shutdown() {
+  server.close(() => process.exit(0));
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

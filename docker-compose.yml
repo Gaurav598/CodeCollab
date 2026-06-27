@@ -1,16 +1,13 @@
 services:
-  postgres:
-    image: postgres:17
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-collabcode}
-      POSTGRES_USER: ${POSTGRES_USER:-collabcode}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-collabcode}
+  mongodb:
+    image: mongo:8
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - mongodb-data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-collabcode} -d ${POSTGRES_DB:-collabcode}"]
+      test: ["CMD", "mongosh", "--eval", "try { rs.status() } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}) }"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,18 +28,20 @@ services:
     build:
       context: ./backend
     environment:
-      DATABASE_URL: ${DATABASE_URL:-jdbc:postgresql://postgres:5432/collabcode}
-      DATABASE_USERNAME: ${DATABASE_USERNAME:-collabcode}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-collabcode}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/collabcode?replicaSet=rs0}
+      REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-replace-with-a-strong-secret}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-900}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:-replace-with-a-strong-service-secret}
       SANDBOX_SERVICE_URL: http://sandbox-service:3001
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dummy}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-dummy}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-dummy}
     ports:
       - "8080:8080"
     depends_on:
-      postgres:
+      mongodb:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -76,7 +75,7 @@ services:
       context: ./sync-service
     environment:
       PORT: 1234
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_URL: redis://redis:6379
       BACKEND_INTERNAL_URL: http://backend:8080/api/v1/internal
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:-replace-with-a-strong-service-secret}
     ports:
@@ -103,5 +102,5 @@ services:
         condition: service_started
 
 volumes:
-  postgres-data:
+  mongodb-data:
   redis-data:

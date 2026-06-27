@@ -5,11 +5,10 @@ import com.collabcode.config.SandboxProperties;
 import com.collabcode.execution.dto.RunCodeRequest;
 import com.collabcode.execution.dto.SandboxExecuteResult;
 import com.collabcode.room.domain.FileEntry;
-import com.collabcode.room.domain.MemberRole;
 import com.collabcode.room.domain.Project;
-import com.collabcode.room.domain.Room;
 import com.collabcode.room.repository.FileRepository;
-import com.collabcode.room.repository.RoomMemberRepository;
+import com.collabcode.room.repository.ProjectRepository;
+import com.collabcode.room.service.RoomAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +26,8 @@ import static org.mockito.Mockito.*;
 class ExecutionServiceTest {
 
     @Mock private FileRepository fileRepository;
-    @Mock private RoomMemberRepository roomMemberRepository;
+    @Mock private ProjectRepository projectRepository;
+    @Mock private RoomAccessService roomAccessService;
     @Mock private SandboxClient sandboxClient;
     @Mock private ExecutionRateLimiter rateLimiter;
 
@@ -37,7 +37,7 @@ class ExecutionServiceTest {
     @BeforeEach
     void setUp() {
         executionService = new ExecutionService(
-                fileRepository, roomMemberRepository, sandboxClient, rateLimiter, properties
+                fileRepository, projectRepository, roomAccessService, sandboxClient, rateLimiter, properties
         );
     }
 
@@ -56,9 +56,11 @@ class ExecutionServiceTest {
         UUID userId = UUID.randomUUID();
         UUID fileId = UUID.randomUUID();
         FileEntry file = mockFile(fileId);
+        Project project = mockProject(FIXED_PROJECT_ID); // build before when()
         when(fileRepository.findById(fileId)).thenReturn(Optional.of(file));
-        when(roomMemberRepository.findRoleByRoomIdAndUserId(any(), eq(userId)))
-                .thenReturn(Optional.of(MemberRole.viewer));
+        when(projectRepository.findById(FIXED_PROJECT_ID)).thenReturn(Optional.of(project));
+        doThrow(ApiException.forbidden("FORBIDDEN", "Editor or Owner role required"))
+                .when(roomAccessService).requireEditor(FIXED_ROOM_ID, userId);
 
         RunCodeRequest request = new RunCodeRequest(fileId, "console.log('hi')", "javascript", "");
 
@@ -72,9 +74,9 @@ class ExecutionServiceTest {
         UUID userId = UUID.randomUUID();
         UUID fileId = UUID.randomUUID();
         FileEntry file = mockFile(fileId);
+        Project project = mockProject(FIXED_PROJECT_ID); // build before when()
         when(fileRepository.findById(fileId)).thenReturn(Optional.of(file));
-        when(roomMemberRepository.findRoleByRoomIdAndUserId(any(), eq(userId)))
-                .thenReturn(Optional.of(MemberRole.editor));
+        when(projectRepository.findById(FIXED_PROJECT_ID)).thenReturn(Optional.of(project));
         when(sandboxClient.execute(eq("python"), anyString(), eq(""), anyInt()))
                 .thenReturn(new SandboxExecuteResult("ok\n", "", 0, 42, false, null));
 
@@ -84,15 +86,21 @@ class ExecutionServiceTest {
         assertEquals("ok\n", response.stdout());
         assertEquals(0, response.exitCode());
         verify(rateLimiter).checkLimit(userId);
+        verify(roomAccessService).requireEditor(FIXED_ROOM_ID, userId);
     }
 
+    private static final UUID FIXED_PROJECT_ID = UUID.randomUUID();
+    private static final UUID FIXED_ROOM_ID = UUID.randomUUID();
+
     private FileEntry mockFile(UUID fileId) {
-        Room room = mock(Room.class);
-        when(room.getId()).thenReturn(UUID.randomUUID());
-        Project project = mock(Project.class);
-        when(project.getRoom()).thenReturn(room);
         FileEntry file = mock(FileEntry.class);
-        when(file.getProject()).thenReturn(project);
+        when(file.getProjectId()).thenReturn(FIXED_PROJECT_ID);
         return file;
+    }
+
+    private Project mockProject(UUID ignoredProjectId) {
+        Project project = mock(Project.class);
+        when(project.getRoomId()).thenReturn(FIXED_ROOM_ID);
+        return project;
     }
 }

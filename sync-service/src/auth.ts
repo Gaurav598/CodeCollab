@@ -18,20 +18,21 @@ export function extractToken(req: IncomingMessage): string | null {
   return null;
 }
 
-// Minimal JWT parser (since we share the same Postgres DB, the backend is the source of truth, 
-// but we just need the subject ID from the JWT payload to ask the backend about it)
+// Minimal JWT parser (the sync service has no direct DB access; it reads the userId
+// from the JWT payload to call the backend membership API for authorization)
 export function parseJwt(token: string): TokenClaims | null {
   try {
-    const base64Url = token.split(".")[1];
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+
+    const base64Url = parts[1];
     if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(jsonPayload);
+    const jsonPayload = Buffer.from(base64Url, "base64url").toString("utf8");
+    const claims = JSON.parse(jsonPayload);
+    if (!claims.sub || typeof claims.sub !== "string") return null;
+    if (typeof claims.exp !== "number") return null;
+    if (claims.exp <= Math.floor(Date.now() / 1000)) return null;
+    return claims;
   } catch (e) {
     return null;
   }

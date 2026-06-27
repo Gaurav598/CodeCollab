@@ -1,6 +1,5 @@
 package com.collabcode.room.controller;
 
-import com.collabcode.auth.security.UserDetailsServiceImpl;
 import com.collabcode.room.dto.CreateRoomRequest;
 import com.collabcode.room.dto.PatchMemberRequest;
 import com.collabcode.room.service.RoomService;
@@ -19,11 +18,9 @@ import java.util.UUID;
 public class RoomController {
 
     private final RoomService roomService;
-    private final UserDetailsServiceImpl userDetailsService;
 
-    public RoomController(RoomService roomService, UserDetailsServiceImpl userDetailsService) {
+    public RoomController(RoomService roomService) {
         this.roomService = roomService;
-        this.userDetailsService = userDetailsService;
     }
 
     /** POST /rooms */

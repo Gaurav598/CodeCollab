@@ -10,11 +10,12 @@ import { config } from "./config.js";
 import { extractToken, parseJwt } from "./auth.js";
 import { checkMembership } from "./roomGuard.js";
 import { persistDocument } from "./persistence.js";
-import { bindAwareness } from "./awareness.js";
+import { bindAwareness, closeAwarenessRedis, unbindAwareness } from "./awareness.js";
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
+const docConnectionCounts = new Map<string, number>();
 
 // Set up y-redis adapter for syncing documents and awareness
 const redisPersistence = new RedisPersistence({
@@ -22,7 +23,7 @@ const redisPersistence = new RedisPersistence({
 });
 
 // Periodic auto-save every 5 seconds
-setInterval(() => {
+const autoSaveInterval = setInterval(() => {
   docs.forEach((doc: any, docName: string) => {
     if (docName.startsWith("file:")) {
       const fileId = docName.split(":")[1];
@@ -98,6 +99,7 @@ server.on("upgrade", async (request, socket, head) => {
 
 wss.on("connection", (ws: any, request: any, { fileId, roomId, userId }: any) => {
   const docName = `file:${fileId}`;
+  docConnectionCounts.set(docName, (docConnectionCounts.get(docName) ?? 0) + 1);
   
   // y-websocket sets up the connection logic internally.
   setupWSConnection(ws, request, { docName });
@@ -114,6 +116,16 @@ wss.on("connection", (ws: any, request: any, { fileId, roomId, userId }: any) =>
   if (docFromUtils && docFromUtils.awareness) {
     bindAwareness(docName, docFromUtils.awareness);
   }
+
+  ws.on("close", () => {
+    const remaining = (docConnectionCounts.get(docName) ?? 1) - 1;
+    if (remaining <= 0) {
+      docConnectionCounts.delete(docName);
+      unbindAwareness(docName);
+    } else {
+      docConnectionCounts.set(docName, remaining);
+    }
+  });
 });
 
 server.listen(config.PORT, () => {
@@ -122,6 +134,9 @@ server.listen(config.PORT, () => {
 
 async function shutdown() {
   console.log("Shutting down sync-service...");
+  clearInterval(autoSaveInterval); // stop periodic saves before destroying Redis
+  wss.close();
+  await closeAwarenessRedis();
   await redisPersistence.destroy();
   server.close();
   process.exit(0);

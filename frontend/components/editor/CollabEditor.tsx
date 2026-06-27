@@ -30,6 +30,7 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
   const users = useAwareness(provider);
   
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const editorDisposablesRef = useRef<monaco.IDisposable[]>([]);
   const bindingRef = useRef<MonacoBinding | null>(null);
   const providerRef = useRef(provider);
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,10 +70,11 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
   }, []);
 
   const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
+    editorDisposablesRef.current.forEach(disposable => disposable.dispose());
+    editorDisposablesRef.current = [];
     editorRef.current = editor;
 
-    // Set up local cursor tracking for awareness
-    editor.onDidChangeCursorPosition((e) => {
+    const cursorDisposable = editor.onDidChangeCursorPosition((e) => {
       if (providerRef.current) {
         providerRef.current.awareness.setLocalStateField('cursor', {
           line: e.position.lineNumber,
@@ -81,7 +83,7 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
       }
     });
 
-    editor.onDidChangeCursorSelection((e) => {
+    const selectionDisposable = editor.onDidChangeCursorSelection((e) => {
       if (providerRef.current) {
         providerRef.current.awareness.setLocalStateField('selection', {
           startLineNumber: e.selection.startLineNumber,
@@ -91,7 +93,16 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
         });
       }
     });
+
+    editorDisposablesRef.current = [cursorDisposable, selectionDisposable];
   };
+
+  useEffect(() => {
+    return () => {
+      editorDisposablesRef.current.forEach(disposable => disposable.dispose());
+      editorDisposablesRef.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     if (!editorRef.current || !doc || !provider) return;
@@ -159,7 +170,13 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
       disposeInlineCompletions: () => undefined,
     });
 
-    return () => disposable.dispose();
+    return () => {
+      disposable.dispose();
+      if (autocompleteTimerRef.current) {
+        clearTimeout(autocompleteTimerRef.current);
+        autocompleteTimerRef.current = null;
+      }
+    };
   }, [monacoApi, activeFile, openFiles]);
 
   if (!activeFile) {

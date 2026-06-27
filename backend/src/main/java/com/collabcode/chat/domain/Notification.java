@@ -1,43 +1,43 @@
 package com.collabcode.chat.domain;
 
-import com.collabcode.auth.domain.User;
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.Indexed;
+
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "notifications")
+@Document(collection = "notifications")
+@CompoundIndex(name = "user_read_idx", def = "{'user_id': 1, 'is_read': 1}")
 public class Notification {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    private UUID id = UUID.randomUUID();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @Field("user_id")
+    @Indexed
+    private UUID userId;
 
-    @Column(nullable = false, length = 50)
-    private String type; // e.g. MENTION, ROLE_CHANGE
+    private String type;
 
-    @Column(nullable = false)
     private String title;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
     private String body;
 
-    @Column(name = "is_read", nullable = false)
+    @Field("is_read")
     private boolean isRead = false;
 
-    @Column(name = "created_at", nullable = false)
+    @Field("created_at")
     private Instant createdAt = Instant.now();
 
     // Getters and Setters
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
+    public UUID getUserId() { return userId; }
+    public void setUserId(UUID userId) { this.userId = userId; }
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }

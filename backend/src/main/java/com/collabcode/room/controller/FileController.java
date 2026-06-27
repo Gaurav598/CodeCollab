@@ -45,7 +45,7 @@ public class FileController {
     @PatchMapping("/{fileId}")
     public ResponseEntity<Map<String, Object>> patchFile(
             @PathVariable UUID fileId,
-            @RequestBody PatchFileRequest request,
+            @Valid @RequestBody PatchFileRequest request,
             @AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.ok(fileService.patchFile(fileId, request.path(), request.language(), userId(principal)));
     }

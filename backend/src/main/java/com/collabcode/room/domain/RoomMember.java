@@ -1,47 +1,44 @@
 package com.collabcode.room.domain;
 
-import com.collabcode.auth.domain.User;
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "room_members",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"room_id", "user_id"}))
+@Document(collection = "room_members")
+@CompoundIndex(name = "room_user_idx", def = "{'room_id': 1, 'user_id': 1}", unique = true)
 public class RoomMember {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    private UUID id = UUID.randomUUID();
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "room_id", nullable = false)
-    private Room room;
+    @Field("room_id")
+    private UUID roomId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @Field("user_id")
+    private UUID userId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private MemberRole role = MemberRole.viewer;
 
-    @Column(name = "joined_at", nullable = false, updatable = false)
+    @Field("joined_at")
     private Instant joinedAt = Instant.now();
 
     protected RoomMember() {}
 
-    public static RoomMember create(Room room, User user, MemberRole role) {
+    public static RoomMember create(UUID roomId, UUID userId, MemberRole role) {
         RoomMember m = new RoomMember();
-        m.room = room;
-        m.user = user;
+        m.roomId = roomId;
+        m.userId = userId;
         m.role = role;
         return m;
     }
 
     public UUID getId() { return id; }
-    public Room getRoom() { return room; }
-    public User getUser() { return user; }
+    public UUID getRoomId() { return roomId; }
+    public UUID getUserId() { return userId; }
     public MemberRole getRole() { return role; }
     public Instant getJoinedAt() { return joinedAt; }
 

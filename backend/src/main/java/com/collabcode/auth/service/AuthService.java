@@ -13,9 +13,11 @@ import com.collabcode.config.SecurityProperties;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -24,6 +26,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -57,27 +60,32 @@ public class AuthService {
     // ──────────────────────────────────────────────
     // Register
     // ──────────────────────────────────────────────
+    
     @Transactional
     public Map<String, Object> register(String username, String email, String rawPassword,
                                         HttpServletResponse response) {
-        if (userRepository.existsByEmail(email)) {
+        String normalizedUsername = username.trim();
+        String normalizedEmail = normalizeEmail(email);
+        if (userRepository.existsByEmailIgnoreCase(normalizedEmail)) {
             throw ApiException.conflict("USER_ALREADY_EXISTS", "Email already in use");
         }
-        if (userRepository.existsByUsername(username)) {
+        if (userRepository.existsByUsernameIgnoreCase(normalizedUsername)) {
             throw ApiException.conflict("USER_ALREADY_EXISTS", "Username already taken");
         }
         String hash = passwordEncoder.encode(rawPassword);
-        User user = userRepository.save(User.createLocal(username, email, hash));
+        User user = userRepository.save(User.createLocal(normalizedUsername, normalizedEmail, hash));
         return buildAuthResponse(user, response);
     }
 
     // ──────────────────────────────────────────────
     // Login
     // ──────────────────────────────────────────────
+    
     @Transactional
     public Map<String, Object> login(String identifier, String rawPassword,
                                      HttpServletResponse response) {
-        User user = userRepository.findByIdentifierIgnoreCase(identifier)
+        String normalizedIdentifier = identifier.trim();
+        User user = userRepository.findByEmailIgnoreCaseOrUsernameIgnoreCase(normalizedIdentifier, normalizedIdentifier)
                 .orElseThrow(() -> ApiException.unauthorized("INVALID_CREDENTIALS", "Invalid credentials"));
         if (user.getPasswordHash() == null
                 || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
@@ -89,6 +97,7 @@ public class AuthService {
     // ──────────────────────────────────────────────
     // Refresh (cookie-based, rotates token)
     // ──────────────────────────────────────────────
+    
     @Transactional
     public String refresh(HttpServletRequest request, HttpServletResponse response) {
         String rawToken = extractRefreshCookie(request);
@@ -104,12 +113,15 @@ public class AuthService {
         session.rotate(hash(newRaw), Instant.now().plus(
                 securityProperties.getRefreshTokenExpirationDays(), ChronoUnit.DAYS));
         setRefreshCookie(response, newRaw);
-        return jwtTokenProvider.generateAccessToken(session.getUser());
+        User sessionUser = userRepository.findById(session.getUserId())
+            .orElseThrow(() -> ApiException.unauthorized("TOKEN_EXPIRED", "Session user not found"));
+        return jwtTokenProvider.generateAccessToken(sessionUser);
     }
 
     // ──────────────────────────────────────────────
     // Logout
     // ──────────────────────────────────────────────
+    
     @Transactional
     public void logout(HttpServletRequest request, HttpServletResponse response) {
         try {
@@ -125,21 +137,19 @@ public class AuthService {
     // ──────────────────────────────────────────────
     // Password Reset
     // ──────────────────────────────────────────────
+    
     @Transactional
     public void requestPasswordReset(String email) {
-        userRepository.findByEmail(email).ifPresent(user -> {
+        userRepository.findByEmail(normalizeEmail(email)).ifPresent(user -> {
             String rawToken = generateRawToken();
             String hashed = hash(rawToken);
-            // Expire in 1 hour
             Instant expiresAt = Instant.now().plus(1, ChronoUnit.HOURS);
-            PasswordResetToken resetToken = PasswordResetToken.create(user, hashed, expiresAt);
+            PasswordResetToken resetToken = PasswordResetToken.create(user.getId(), hashed, expiresAt);
             passwordResetTokenRepository.save(resetToken);
-            
-            // In a real system, send email here.
-            System.out.println("DEBUG: Password reset token for " + email + " is " + rawToken);
         });
     }
 
+    
     @Transactional
     public void resetPassword(String rawToken, String newPassword) {
         String hashed = hash(rawToken);
@@ -151,7 +161,8 @@ public class AuthService {
             throw ApiException.badRequest("INVALID_TOKEN", "Invalid or expired token");
         }
 
-        User user = resetToken.getUser();
+        User user = userRepository.findById(resetToken.getUserId())
+            .orElseThrow(() -> ApiException.badRequest("INVALID_TOKEN", "User no longer exists"));
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
@@ -163,6 +174,7 @@ public class AuthService {
     // ──────────────────────────────────────────────
     // /auth/me — restore session
     // ──────────────────────────────────────────────
+    
     @Transactional(readOnly = true)
     public Map<String, Object> me(HttpServletRequest request, HttpServletResponse response) {
         String rawToken = extractRefreshCookie(request);
@@ -172,7 +184,8 @@ public class AuthService {
         if (session.isExpired()) {
             throw ApiException.unauthorized("UNAUTHENTICATED", "Session expired");
         }
-        User user = session.getUser();
+        User user = userRepository.findById(session.getUserId())
+            .orElseThrow(() -> ApiException.unauthorized("UNAUTHENTICATED", "User not found"));
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         return Map.of("user", userDto(user), "accessToken", accessToken);
     }
@@ -180,12 +193,12 @@ public class AuthService {
     // ──────────────────────────────────────────────
     // Package-level helper: issue cookie for OAuth flow
     // ──────────────────────────────────────────────
-    @Transactional
+    
     public void issueRefreshCookie(HttpServletResponse response, User user) {
         String rawToken = generateRawToken();
         Instant expiresAt = Instant.now().plus(
                 securityProperties.getRefreshTokenExpirationDays(), ChronoUnit.DAYS);
-        Session session = Session.create(user, hash(rawToken), expiresAt);
+        Session session = Session.create(user.getId(), hash(rawToken), expiresAt);
         sessionRepository.save(session);
         setRefreshCookie(response, rawToken);
     }
@@ -227,21 +240,30 @@ public class AuthService {
     }
 
     private void setRefreshCookie(HttpServletResponse response, String rawToken) {
-        int maxAgeSeconds = (int) (securityProperties.getRefreshTokenExpirationDays() * 86400);
-        Cookie cookie = new Cookie(REFRESH_COOKIE_NAME, rawToken);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(false);  // set to true in prod behind HTTPS
-        cookie.setPath("/");
-        cookie.setMaxAge(maxAgeSeconds);
-        response.addCookie(cookie);
+        long maxAgeSeconds = securityProperties.getRefreshTokenExpirationDays() * 86400;
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, rawToken)
+                .httpOnly(true)
+                .secure(securityProperties.isRefreshCookieSecure())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(maxAgeSeconds)
+                .build();
+        response.addHeader("Set-Cookie", cookie.toString());
     }
 
     private void clearRefreshCookie(HttpServletResponse response) {
-        Cookie cookie = new Cookie(REFRESH_COOKIE_NAME, "");
-        cookie.setHttpOnly(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(0);
-        response.addCookie(cookie);
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, "")
+                .httpOnly(true)
+                .secure(securityProperties.isRefreshCookieSecure())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     static Map<String, Object> userDto(User user) {

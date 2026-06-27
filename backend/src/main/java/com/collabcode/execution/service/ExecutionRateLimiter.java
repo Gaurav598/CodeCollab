@@ -23,16 +23,22 @@ public class ExecutionRateLimiter {
 
     public void checkLimit(UUID userId) {
         String key = KEY_PREFIX + userId;
-        Long count = redis.opsForValue().increment(key);
-        if (count != null && count == 1L) {
-            redis.expire(key, Duration.ofMinutes(1));
-        }
-        if (count != null && count > properties.getRateLimitPerMinute()) {
-            throw new ApiException(
-                    org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
-                    "RATE_LIMIT_EXCEEDED",
-                    "Execution rate limit exceeded. Try again later."
-            );
+        try {
+            Long count = redis.opsForValue().increment(key);
+            if (count != null && count == 1L) {
+                redis.expire(key, Duration.ofMinutes(1));
+            }
+            if (count != null && count > properties.getRateLimitPerMinute()) {
+                throw new ApiException(
+                        org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
+                        "RATE_LIMIT_EXCEEDED",
+                        "Execution rate limit exceeded. Try again later."
+                );
+            }
+        } catch (ApiException ex) {
+            throw ex; // re-throw rate-limit exceptions
+        } catch (org.springframework.data.redis.RedisConnectionFailureException ex) {
+            // Degrade gracefully if Redis is unavailable — allow execution to proceed.
         }
     }
 }

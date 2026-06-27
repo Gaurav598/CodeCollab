@@ -6,11 +6,12 @@ import com.collabcode.execution.dto.RunCodeRequest;
 import com.collabcode.execution.dto.RunCodeResponse;
 import com.collabcode.execution.dto.SandboxExecuteResult;
 import com.collabcode.room.domain.FileEntry;
-import com.collabcode.room.domain.MemberRole;
 import com.collabcode.room.repository.FileRepository;
-import com.collabcode.room.repository.RoomMemberRepository;
+import com.collabcode.room.domain.Project;
+import com.collabcode.room.repository.ProjectRepository;
+import com.collabcode.room.service.RoomAccessService;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+
 
 import java.util.Set;
 import java.util.UUID;
@@ -23,24 +24,27 @@ public class ExecutionService {
     );
 
     private final FileRepository fileRepository;
-    private final RoomMemberRepository roomMemberRepository;
+    private final ProjectRepository projectRepository;
+    private final RoomAccessService roomAccessService;
     private final SandboxClient sandboxClient;
     private final ExecutionRateLimiter rateLimiter;
     private final SandboxProperties sandboxProperties;
 
     public ExecutionService(FileRepository fileRepository,
-                            RoomMemberRepository roomMemberRepository,
+                            ProjectRepository projectRepository,
+                            RoomAccessService roomAccessService,
                             SandboxClient sandboxClient,
                             ExecutionRateLimiter rateLimiter,
                             SandboxProperties sandboxProperties) {
         this.fileRepository = fileRepository;
-        this.roomMemberRepository = roomMemberRepository;
+        this.projectRepository = projectRepository;
+        this.roomAccessService = roomAccessService;
         this.sandboxClient = sandboxClient;
         this.rateLimiter = rateLimiter;
         this.sandboxProperties = sandboxProperties;
     }
 
-    @Transactional(readOnly = true)
+    
     public RunCodeResponse runCode(RunCodeRequest request, UUID userId) {
         rateLimiter.checkLimit(userId);
 
@@ -52,7 +56,10 @@ public class ExecutionService {
         FileEntry file = fileRepository.findById(request.fileId())
                 .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "File not found"));
 
-        requireEditor(file.getProject().getRoom().getId(), userId);
+        Project project = projectRepository.findById(file.getProjectId())
+                .orElseThrow(() -> ApiException.notFound("PROJECT_NOT_FOUND", "Project not found"));
+
+        roomAccessService.requireEditor(project.getRoomId(), userId);
 
         SandboxExecuteResult result = sandboxClient.execute(
                 request.language().toLowerCase(),
@@ -62,14 +69,6 @@ public class ExecutionService {
         );
 
         return toResponse(result);
-    }
-
-    private void requireEditor(UUID roomId, UUID userId) {
-        MemberRole role = roomMemberRepository.findRoleByRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> ApiException.forbidden("FORBIDDEN", "Not a member of this room"));
-        if (!role.canEdit()) {
-            throw ApiException.forbidden("FORBIDDEN", "Editor or Owner role required to execute code");
-        }
     }
 
     private RunCodeResponse toResponse(SandboxExecuteResult result) {

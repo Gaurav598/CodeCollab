@@ -1,37 +1,36 @@
 package com.collabcode.room.domain;
 
-import com.collabcode.auth.domain.User;
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.index.Indexed;
+
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "rooms")
+@Document(collection = "rooms")
 public class Room {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    private UUID id = UUID.randomUUID();
 
-    @Column(name = "room_code", nullable = false, unique = true, length = 12)
+    @Indexed(unique = true)
+    @Field("room_code")
     private String roomCode;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "owner_id", nullable = false)
-    private User owner;
+    @Field("owner_id")
+    private UUID ownerId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private RoomVisibility visibility = RoomVisibility.private_room;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Field("created_at")
     private Instant createdAt = Instant.now();
 
     protected Room() {}
 
-    public static Room create(User owner, String roomCode, RoomVisibility visibility) {
+    public static Room create(UUID ownerId, String roomCode, RoomVisibility visibility) {
         Room r = new Room();
-        r.owner = owner;
+        r.ownerId = ownerId;
         r.roomCode = roomCode;
         r.visibility = visibility;
         return r;
@@ -39,7 +38,7 @@ public class Room {
 
     public UUID getId() { return id; }
     public String getRoomCode() { return roomCode; }
-    public User getOwner() { return owner; }
+    public UUID getOwnerId() { return ownerId; }
     public RoomVisibility getVisibility() { return visibility; }
     public Instant getCreatedAt() { return createdAt; }
 

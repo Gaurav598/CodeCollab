@@ -25,4 +25,24 @@ Pending:
 - None
 
 Last Updated:
-2026-06-24
+2026-06-27
+
+Engineering Excellence Sprint:
+- [x] Staff-level production hardening pass completed across backend, frontend, sync service, sandbox service, Docker/env, and tests.
+- [x] Backend Mongo migration hardening: single transaction manager, Mongo-native health check, corrected Mongo compound index field names, and removal of stale JDBC health dependency.
+- [x] Backend security hardening: centralized room access checks, explicit chat/history/presence/STOMP authorization, stricter ownership semantics, normalized auth identifiers, secure refresh-cookie configuration, and no plaintext password-reset token logging.
+- [x] Backend maintainability/performance hardening: consolidated duplicated role checks, batched room member/project file/chat sender lookups, normalized file/project inputs, and safer file path validation.
+- [x] Realtime hardening: JWT expiration enforcement before WebSocket upgrade, awareness Redis listener cleanup, auto-save interval cleanup, and graceful shutdown cleanup.
+- [x] Sandbox hardening: constant-time service-token comparison, bounded output buffering, timeout loser-promise handling, and graceful shutdown.
+- [x] Frontend hardening: corrected create-file API payload, encoded dynamic API/WebSocket parameters, avoided in-place chat history mutation, handled 204 API responses, and disposed Monaco editor listeners.
+
+Verification:
+- Backend: `mvn test` PASS (9 tests).
+- Frontend: `npm run lint` PASS.
+- Frontend: `npm run test` PASS (5 files, 11 tests).
+- Sync Service: `npm run build` PASS.
+- Sandbox Service: `npm run build` PASS.
+
+Current Verdict:
+- Feature-complete project remains complete after hardening.
+- Remaining debt is primarily coverage depth, live Docker/E2E re-verification after this refactor, and production email delivery for password reset.

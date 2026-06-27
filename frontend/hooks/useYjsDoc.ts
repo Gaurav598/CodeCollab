@@ -19,7 +19,7 @@ export function useYjsDoc(roomId: string, fileId: string | null) {
 
     const ydoc = new Y.Doc();
     const wsUrl = syncConfig.getWsUrl();
-    const roomPath = `sync?roomId=${roomId}&fileId=${fileId}&token=${token}`;
+    const roomPath = `sync?roomId=${encodeURIComponent(roomId)}&fileId=${encodeURIComponent(fileId)}&token=${encodeURIComponent(token)}`;
 
     const wsProvider = new WebsocketProvider(wsUrl, roomPath, ydoc);
 

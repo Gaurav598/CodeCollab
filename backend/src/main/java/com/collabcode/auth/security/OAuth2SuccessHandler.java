@@ -8,12 +8,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+
 
 import java.io.IOException;
+import java.security.SecureRandom;
+import java.util.Locale;
 
 /**
  * Handles the OAuth2 post-authorization callback:
@@ -28,6 +31,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final UserRepository userRepository;
     private final AuthService authService;
     private final String frontendUrl;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public OAuth2SuccessHandler(UserRepository userRepository,
                                 AuthService authService,
@@ -38,14 +42,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     }
 
     @Override
-    @Transactional
+    
     public void onAuthenticationSuccess(HttpServletRequest request,
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException {
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String registrationId = resolveRegistrationId(authentication);
 
-        String email = resolveEmail(oAuth2User, registrationId);
+        String email = resolveEmail(oAuth2User, registrationId).trim().toLowerCase(Locale.ROOT);
         String name  = oAuth2User.getAttribute("name");
         String avatar = oAuth2User.getAttribute("avatar_url");
         if (avatar == null) avatar = oAuth2User.getAttribute("picture");
@@ -71,10 +75,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     }
 
     private String resolveRegistrationId(Authentication authentication) {
-        // Principal name carries registrationId in the standard Spring flow
-        Object details = authentication.getDetails();
-        if (details instanceof org.springframework.security.oauth2.client.authentication.OAuth2AuthorizationCodeAuthenticationToken token) {
-            return token.getClientRegistration().getRegistrationId();
+        if (authentication instanceof OAuth2AuthenticationToken token) {
+            return token.getAuthorizedClientRegistrationId();
         }
         return "google";
     }
@@ -83,8 +85,16 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String base = (name != null && !name.isBlank())
                 ? name.replaceAll("\\s+", "").toLowerCase()
                 : email.split("@")[0];
-        // Truncate to 25 chars and append 5-char random suffix to avoid collision
-        base = base.replaceAll("[^a-z0-9]", "").substring(0, Math.min(base.length(), 20));
-        return base + "_" + (int)(Math.random() * 90000 + 10000);
+        base = base.replaceAll("[^a-z0-9_]", "");
+        if (base.isBlank()) {
+            base = "user";
+        }
+        base = base.substring(0, Math.min(base.length(), 20));
+
+        String username;
+        do {
+            username = base + "_" + (secureRandom.nextInt(90000) + 10000);
+        } while (userRepository.existsByUsernameIgnoreCase(username));
+        return username;
     }
 }

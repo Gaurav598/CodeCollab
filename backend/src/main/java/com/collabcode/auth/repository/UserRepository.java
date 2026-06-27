@@ -1,16 +1,20 @@
 package com.collabcode.auth.repository;
 
 import com.collabcode.auth.domain.User;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
-public interface UserRepository extends JpaRepository<User, UUID> {
+public interface UserRepository extends MongoRepository<User, UUID> {
     Optional<User> findByEmail(String email);
     Optional<User> findByUsername(String username);
     boolean existsByEmail(String email);
     boolean existsByUsername(String username);
-    /** Lookup by email OR username — used for login identifier resolution (Case Insensitive) */
-    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:identifier) OR LOWER(u.username) = LOWER(:identifier)")
-    Optional<User> findByIdentifierIgnoreCase(@org.springframework.data.repository.query.Param("identifier") String identifier);
+    boolean existsByEmailIgnoreCase(String email);
+    boolean existsByUsernameIgnoreCase(String username);
+    List<User> findAllByUsernameIn(Collection<String> usernames);
+    
+    Optional<User> findByEmailIgnoreCaseOrUsernameIgnoreCase(String email, String username);
 }

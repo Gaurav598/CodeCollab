@@ -2,11 +2,11 @@ package com.collabcode.chat.controller;
 
 import com.collabcode.chat.dto.ChatMessageDto;
 import com.collabcode.chat.service.ChatService;
-import com.collabcode.auth.rbac.RequireRoomRole;
-import com.collabcode.auth.rbac.RoomRole;
+import com.collabcode.auth.security.CollabUserDetails;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -22,8 +22,9 @@ public class ChatRestController {
     }
 
     @GetMapping("/{roomId}/history")
-    @RequireRoomRole(RoomRole.viewer)
-    public ResponseEntity<Page<ChatMessageDto>> getHistory(@PathVariable UUID roomId, Pageable pageable) {
-        return ResponseEntity.ok(chatService.getMessageHistory(roomId, pageable));
+    public ResponseEntity<Page<ChatMessageDto>> getHistory(@PathVariable UUID roomId,
+                                                           Pageable pageable,
+                                                           @AuthenticationPrincipal CollabUserDetails user) {
+        return ResponseEntity.ok(chatService.getMessageHistory(roomId, user.getId(), pageable));
     }
 }

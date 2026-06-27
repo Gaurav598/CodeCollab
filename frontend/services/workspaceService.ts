@@ -55,7 +55,7 @@ export async function getRoomMembers(roomCode: string): Promise<RoomMember[]> {
 }
 
 export async function getRoomProjects(roomCode: string): Promise<Project[]> {
-  return apiFetch<Project[]>(`/projects?roomCode=${roomCode}`);
+  return apiFetch<Project[]>(`/projects?roomCode=${encodeURIComponent(roomCode)}`);
 }
 
 export async function createProject(roomCode: string, name: string): Promise<Project> {
@@ -79,7 +79,7 @@ export async function deleteProject(projectId: string): Promise<{ message: strin
 export async function createFile(projectId: string, path: string, language?: string): Promise<FileEntry> {
   return apiFetch<FileEntry>("/files", {
     method: "POST",
-    body: JSON.stringify({ projectId, path, languageOrDefault: language }),
+    body: JSON.stringify({ projectId, path, language }),
   });
 }
 

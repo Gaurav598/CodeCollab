@@ -46,7 +46,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => ({
             messagesByRoom: {
                 ...state.messagesByRoom,
-                [roomId]: messages.reverse(), // assuming latest first from API
+                [roomId]: [...messages].reverse(), // API returns latest first
             },
         }));
     },

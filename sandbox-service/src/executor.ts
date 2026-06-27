@@ -15,6 +15,13 @@ function truncateOutput(text: string): string {
   return buf.toString("utf8") + "\n...[output truncated]";
 }
 
+function appendBoundedOutput(current: string, chunk: string): string {
+  if (Buffer.byteLength(current, "utf8") > config.MAX_OUTPUT_BYTES) {
+    return current;
+  }
+  return truncateOutput(current + chunk);
+}
+
 function splitCompileAndRun(output: string, exitCode: number): { stdout: string; stderr: string } {
   if (exitCode === 1 && output.toLowerCase().includes("error")) {
     return { stdout: "", stderr: output };
@@ -44,7 +51,7 @@ async function execInContainer(
 
       let output = "";
       stream.on("data", (chunk: Buffer) => {
-        output += demuxDockerLogs(chunk);
+        output = appendBoundedOutput(output, demuxDockerLogs(chunk));
       });
 
       stream.on("end", async () => {
@@ -175,6 +182,7 @@ export async function executeCode(request: ExecuteRequest): Promise<ExecuteRespo
     const { result, timedOut } = await runWithTimeout(runPromise, timeoutMs);
 
     if (timedOut) {
+      runPromise.catch(() => undefined);
       try {
         await container.kill({ signal: "SIGKILL" });
       } catch {

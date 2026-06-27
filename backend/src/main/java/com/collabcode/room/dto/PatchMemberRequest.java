@@ -5,6 +5,6 @@ import jakarta.validation.constraints.Pattern;
 
 public record PatchMemberRequest(
     @NotBlank(message = "Role is required")
-    @Pattern(regexp = "owner|editor|viewer", message = "Role must be 'owner', 'editor', or 'viewer'")
+    @Pattern(regexp = "editor|viewer", message = "Role must be 'editor' or 'viewer'")
     String role
 ) {}

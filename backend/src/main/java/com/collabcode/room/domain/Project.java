@@ -1,38 +1,39 @@
 package com.collabcode.room.domain;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.index.Indexed;
+
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "projects")
+@Document(collection = "projects")
 public class Project {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    private UUID id = UUID.randomUUID();
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "room_id", nullable = false)
-    private Room room;
+    @Field("room_id")
+    @Indexed
+    private UUID roomId;
 
-    @Column(nullable = false)
     private String name;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Field("created_at")
     private Instant createdAt = Instant.now();
 
     protected Project() {}
 
-    public static Project create(Room room, String name) {
+    public static Project create(UUID roomId, String name) {
         Project p = new Project();
-        p.room = room;
+        p.roomId = roomId;
         p.name = name;
         return p;
     }
 
     public UUID getId() { return id; }
-    public Room getRoom() { return room; }
+    public UUID getRoomId() { return roomId; }
     public String getName() { return name; }
     public Instant getCreatedAt() { return createdAt; }
 

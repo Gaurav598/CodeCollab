@@ -12,7 +12,7 @@ import com.collabcode.room.repository.FileRepository;
 import com.collabcode.room.repository.ProjectRepository;
 import com.collabcode.room.repository.RoomMemberRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -41,21 +41,25 @@ public class AiContextService {
         this.properties = properties;
     }
 
-    @Transactional(readOnly = true)
+    
     public ContextEnvelope load(AiRequest request, UUID userId, AiFeature feature) {
         FileEntry activeFile = null;
         Project project = null;
         if (request.fileId() != null) {
             activeFile = fileRepository.findById(request.fileId())
                     .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "File not found"));
-            project = activeFile.getProject();
+            project = projectRepository.findById(activeFile.getProjectId())
+                    .orElseThrow(() -> ApiException.notFound("PROJECT_NOT_FOUND", "Project not found"));
         } else if (request.projectId() != null) {
             project = projectRepository.findById(request.projectId())
                     .orElseThrow(() -> ApiException.notFound("PROJECT_NOT_FOUND", "Project not found"));
         }
 
+        if (project == null && activeFile != null) {
+            project = projectRepository.findById(activeFile.getProjectId()).orElse(null);
+        }
         if (project != null) {
-            requireAccess(project.getRoom().getId(), userId, feature);
+            requireAccess(project.getRoomId(), userId, feature);
         }
 
         Map<UUID, AiContextFile> files = new LinkedHashMap<>();
@@ -68,7 +72,10 @@ public class AiContextService {
                 if (files.size() >= properties.getMaxContextFiles()) break;
                 FileEntry file = fileRepository.findById(fileId)
                         .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "Context file not found"));
-                requireAccess(file.getProject().getRoom().getId(), userId, AiFeature.CHAT);
+                Project p = projectRepository.findById(file.getProjectId()).orElse(null);
+                if (p != null) {
+                    requireAccess(p.getRoomId(), userId, AiFeature.CHAT);
+                }
                 files.putIfAbsent(file.getId(), toContextFile(file, null));
             }
         }
@@ -96,7 +103,7 @@ public class AiContextService {
     }
 
     private void requireAccess(UUID roomId, UUID userId, AiFeature feature) {
-        MemberRole role = roomMemberRepository.findRoleByRoomIdAndUserId(roomId, userId)
+        MemberRole role = roomMemberRepository.findByRoomIdAndUserId(roomId, userId).map(com.collabcode.room.domain.RoomMember::getRole)
                 .orElseThrow(() -> ApiException.forbidden("FORBIDDEN", "Not a member of this room"));
         if (feature.isWriteIntent() && !role.canEdit()) {
             throw ApiException.forbidden("FORBIDDEN", "Editor or Owner role required");

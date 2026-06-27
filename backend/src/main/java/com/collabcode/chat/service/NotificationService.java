@@ -12,7 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
+
+import java.util.*;
 
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
@@ -29,16 +30,17 @@ public class NotificationService {
         this.messagingTemplate = messagingTemplate;
     }
 
+    
     @Transactional
-    public NotificationDto createNotification(UUID userId, String type, String title, String body) {
+    public void createNotification(UUID userId, String type, String title, String message) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
 
         Notification notification = new Notification();
-        notification.setUser(user);
+        notification.setUserId(userId);
         notification.setType(type);
         notification.setTitle(title);
-        notification.setBody(body);
+        notification.setBody(message);
 
         Notification saved = notificationRepository.save(notification);
         NotificationDto dto = NotificationDto.fromEntity(saved);
@@ -48,27 +50,26 @@ public class NotificationService {
             "/queue/notifications", 
             dto
         );
-
-        return dto;
     }
 
-    @Transactional(readOnly = true)
+    
     public Page<NotificationDto> getUserNotifications(UUID userId, Pageable pageable) {
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
                 .map(NotificationDto::fromEntity);
     }
 
-    @Transactional(readOnly = true)
+    
     public long getUnreadCount(UUID userId) {
         return notificationRepository.countByUserIdAndIsReadFalse(userId);
     }
 
+    
     @Transactional
     public void markAsRead(UUID notificationId, UUID userId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> ApiException.notFound("NOTIFICATION_NOT_FOUND", "Notification not found"));
         
-        if (!notification.getUser().getId().equals(userId)) {
+        if (!notification.getUserId().equals(userId)) {
             throw ApiException.forbidden("FORBIDDEN", "Not your notification");
         }
 

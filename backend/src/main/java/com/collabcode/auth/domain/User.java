@@ -1,39 +1,38 @@
 package com.collabcode.auth.domain;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.index.Indexed;
+
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "users")
+@Document(collection = "users")
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    private UUID id = UUID.randomUUID();
 
-    @Column(nullable = false, unique = true, length = 30)
+    @Indexed(unique = true)
     private String username;
 
-    @Column(nullable = false, unique = true)
+    @Indexed(unique = true)
     private String email;
 
-    @Column(name = "password_hash")
+    @Field("password_hash")
     private String passwordHash;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private AuthProvider provider = AuthProvider.local;
 
-    @Column(name = "avatar_url")
+    @Field("avatar_url")
     private String avatarUrl;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Field("created_at")
     private Instant createdAt = Instant.now();
 
     protected User() {}
 
-    // Factory: local registration
     public static User createLocal(String username, String email, String passwordHash) {
         User u = new User();
         u.username = username;
@@ -43,7 +42,6 @@ public class User {
         return u;
     }
 
-    // Factory: OAuth
     public static User createOAuth(String username, String email, String avatarUrl, AuthProvider provider) {
         User u = new User();
         u.username = username;

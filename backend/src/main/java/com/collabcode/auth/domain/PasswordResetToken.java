@@ -1,36 +1,38 @@
 package com.collabcode.auth.domain;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.index.Indexed;
+
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "password_reset_tokens")
+@Document(collection = "password_reset_tokens")
 public class PasswordResetToken {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    private UUID id = UUID.randomUUID();
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @Field("user_id")
+    private UUID userId;
 
     /** SHA-256 hash of the raw reset token. Never store plaintext. */
-    @Column(name = "token_hash", nullable = false, unique = true)
+    @Indexed(unique = true)
+    @Field("token_hash")
     private String tokenHash;
 
-    @Column(name = "expires_at", nullable = false)
+    @Field("expires_at")
     private Instant expiresAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Field("created_at")
     private Instant createdAt = Instant.now();
 
     protected PasswordResetToken() {}
 
-    public static PasswordResetToken create(User user, String hashedToken, Instant expiresAt) {
+    public static PasswordResetToken create(UUID userId, String hashedToken, Instant expiresAt) {
         PasswordResetToken token = new PasswordResetToken();
-        token.user = user;
+        token.userId = userId;
         token.tokenHash = hashedToken;
         token.expiresAt = expiresAt;
         return token;
@@ -41,7 +43,7 @@ public class PasswordResetToken {
     }
 
     public UUID getId() { return id; }
-    public User getUser() { return user; }
+    public UUID getUserId() { return userId; }
     public String getTokenHash() { return tokenHash; }
     public Instant getExpiresAt() { return expiresAt; }
     public Instant getCreatedAt() { return createdAt; }

@@ -13,11 +13,11 @@ public class ChatMessageDto {
     private Instant editedAt;
     private boolean deleted;
 
-    public static ChatMessageDto fromEntity(Message message) {
+    public static ChatMessageDto fromEntity(Message message, String senderName) {
         ChatMessageDto dto = new ChatMessageDto();
         dto.setId(message.getId());
-        dto.setSenderId(message.getSender().getId());
-        dto.setSenderName(message.getSender().getUsername());
+        dto.setSenderId(message.getSenderId());
+        dto.setSenderName(senderName);
         dto.setMessage(message.isDeleted() ? "This message was deleted." : message.getContent());
         dto.setCreatedAt(message.getCreatedAt());
         dto.setEditedAt(message.getEditedAt());

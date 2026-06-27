@@ -1,36 +1,38 @@
 package com.collabcode.auth.domain;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.index.Indexed;
+
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "sessions")
+@Document(collection = "sessions")
 public class Session {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    private UUID id = UUID.randomUUID();
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @Field("user_id")
+    private UUID userId;
 
     /** SHA-256 hash of the raw refresh token. Never store plaintext. */
-    @Column(name = "refresh_token", nullable = false, unique = true)
+    @Indexed(unique = true)
+    @Field("refresh_token")
     private String refreshToken;
 
-    @Column(name = "expires_at", nullable = false)
+    @Field("expires_at")
     private Instant expiresAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Field("created_at")
     private Instant createdAt = Instant.now();
 
     protected Session() {}
 
-    public static Session create(User user, String hashedToken, Instant expiresAt) {
+    public static Session create(UUID userId, String hashedToken, Instant expiresAt) {
         Session s = new Session();
-        s.user = user;
+        s.userId = userId;
         s.refreshToken = hashedToken;
         s.expiresAt = expiresAt;
         return s;
@@ -41,7 +43,7 @@ public class Session {
     }
 
     public UUID getId() { return id; }
-    public User getUser() { return user; }
+    public UUID getUserId() { return userId; }
     public String getRefreshToken() { return refreshToken; }
     public Instant getExpiresAt() { return expiresAt; }
     public Instant getCreatedAt() { return createdAt; }

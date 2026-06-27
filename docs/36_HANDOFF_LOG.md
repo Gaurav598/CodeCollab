@@ -472,3 +472,80 @@ Final Verdict:
 VERIFIED COMPLETE
 The entire architecture starts successfully. 
 All goals for the CollabCode project have been fulfilled. No further actions required.
+
+---
+
+Session #14
+
+CollabCode Engineering Excellence Sprint:
+
+Scope:
+- Performed a production-grade hardening review across Backend, Frontend, Sync Service, Sandbox Service, Tests, Docker, and Environment.
+- The project was already feature-complete; this sprint intentionally avoided new product features and focused on correctness, security, maintainability, performance, and lifecycle cleanup.
+
+Architecture Review:
+- Preserved the existing Spring Boot + MongoDB + Redis + Next.js + Yjs + Docker sandbox architecture.
+- Removed a duplicate Mongo transaction-manager bean and retained one Mongo transaction boundary for existing `@Transactional` service methods.
+- Replaced stale JDBC health probing with Mongo-native `ping`.
+- Added `RoomAccessService` as the single backend role/membership enforcement point for room-scoped operations.
+
+Code Quality Review:
+- Consolidated repeated room-member/editor/owner checks from project, file, execution, room, chat, and STOMP paths.
+- Normalized auth identifiers, project names, file paths, and file languages at service boundaries.
+- Corrected file creation request shape and improved frontend API/WebSocket parameter encoding.
+- Disposed Monaco cursor/selection listeners to prevent retained handlers across editor remounts.
+
+Security Improvements:
+- Enforced room membership on chat history, STOMP chat sends, presence join/list, WebRTC signaling, and sync-service internal membership validation.
+- Prevented member patch endpoint from assigning `owner` and blocked removal/role mutation of canonical room owner.
+- Removed plaintext password-reset token logging.
+- Added configurable secure refresh-cookie flag with `SameSite=Lax`.
+- Made sandbox service-token comparison constant-time.
+- Rejected expired JWTs before sync WebSocket upgrade.
+
+Performance Improvements:
+- Fixed Mongo compound indexes to target stored field names (`project_id`, `room_id`, `user_id`).
+- Batched member/user lookup paths for room members and presence roster.
+- Batched project file loading to avoid per-project file queries.
+- Batched mention lookup in chat instead of one user query per mention.
+- Bounded sandbox output accumulation before final truncation.
+
+Realtime/Sandbox Improvements:
+- Added cleanup for Yjs awareness Redis listeners when the final socket for a document closes.
+- Cleared sync auto-save interval during shutdown and closed awareness Redis clients.
+- Added sandbox graceful shutdown and suppressed timeout loser-promise rejection after container kill.
+
+Verification:
+- Backend: `mvn test` PASS (9 tests).
+- Frontend: `npm run lint` PASS.
+- Frontend: `npm run test` PASS (5 files, 11 tests).
+- Sync Service: `npm run build` PASS.
+- Sandbox Service: `npm run build` PASS.
+
+Modified Areas:
+- Backend health/config/security/auth/room/project/file/chat/execution services and DTOs.
+- Sync service auth, WebSocket lifecycle, and awareness persistence cleanup.
+- Sandbox service auth, lifecycle, and executor buffering.
+- Frontend auth/workspace services, chat store, Yjs hook, and Monaco editor lifecycle.
+- Environment docs/config for refresh cookie security.
+
+Technical Debt Remaining:
+- Password reset still needs a real email delivery provider; token logging was removed for safety.
+- Sync service still parses JWTs locally for expiry but does not cryptographically verify signatures; backend membership validation mitigates privilege escalation, but signed verification would be stronger.
+- Playwright E2E and live Docker sandbox execution should be rerun after this hardening pass in a full local/runtime environment.
+- Backend test coverage is still thin for room/chat/internal security paths and should be expanded.
+- Frontend state still has limited error/loading modeling in some workspace panels.
+
+Engineering Score:
+- Backend: 86/100
+- Frontend: 82/100
+- Realtime: 80/100
+- Sandbox: 84/100
+- Overall: 84/100
+
+Final Verdict:
+NEEDS FURTHER HARDENING
+
+Rationale:
+- The codebase is significantly closer to industry-grade and all targeted checks passed.
+- Production readiness still needs stronger security test coverage, cryptographic sync JWT verification, live E2E/runtime re-verification after refactor, and password-reset email delivery.
