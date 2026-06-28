@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface RoomRepository extends MongoRepository<Room, UUID> {
     Optional<Room> findByRoomCode(String roomCode);
     boolean existsByRoomCode(String roomCode);
+    java.util.List<Room> findByLastActiveAtBefore(java.time.Instant time);
 }

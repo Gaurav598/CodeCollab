@@ -60,9 +60,11 @@ public class RoomService {
         return roomDto(room, owner);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, Object> getRoom(String roomCode, UUID requestingUserId) {
         Room room = findByCode(roomCode);
+        room.updateLastActive();
+        roomRepository.save(room);
         if (!room.isPublic()) {
             roomAccessService.requireMember(room.getId(), requestingUserId);
         }
@@ -126,6 +128,8 @@ public class RoomService {
     @Transactional
     public Map<String, Object> joinRoom(String roomCode, UUID userId) {
         Room room = findByCode(roomCode);
+        room.updateLastActive();
+        roomRepository.save(room);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
 
@@ -186,6 +190,20 @@ public class RoomService {
         Room room = findByCode(roomCode);
         roomAccessService.requireOwner(room.getId(), requestingUserId);
         
+        roomMemberRepository.deleteAllByRoomId(room.getId());
+        messageRepository.deleteAllByRoomId(room.getId());
+        
+        List<Project> projects = projectRepository.findAllByRoomId(room.getId());
+        for (Project p : projects) {
+            fileRepository.deleteAllByProjectId(p.getId());
+        }
+        projectRepository.deleteAllByRoomId(room.getId());
+        
+        roomRepository.delete(room);
+    }
+
+    @Transactional
+    public void deleteRoomInternal(Room room) {
         roomMemberRepository.deleteAllByRoomId(room.getId());
         messageRepository.deleteAllByRoomId(room.getId());
         

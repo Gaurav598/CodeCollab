@@ -21,10 +21,17 @@ export function Sidebar({ roomCode, userRole, onProjectsLoaded }: { roomCode: st
   async function fetchProjects() {
     try {
       const data = await getRoomProjects(roomCode);
-      setProjects(data);
-      onProjectsLoaded?.(data);
-      if (data.length > 0 && !activeProjectId) {
-        setActiveProject(data[0].id);
+      if (data.length === 0 && (userRole === "owner" || userRole === "editor")) {
+        const defaultProj = await createProject(roomCode, "Files");
+        setProjects([defaultProj]);
+        setActiveProject(defaultProj.id);
+        onProjectsLoaded?.([defaultProj]);
+      } else {
+        setProjects(data);
+        if (data.length > 0 && !activeProjectId) {
+          setActiveProject(data[0].id);
+        }
+        onProjectsLoaded?.(data);
       }
     } catch (err) {
       console.error(err);
@@ -33,53 +40,26 @@ export function Sidebar({ roomCode, userRole, onProjectsLoaded }: { roomCode: st
     }
   }
 
-  async function handleCreateProject() {
-    const name = prompt("Project Name:");
-    if (name) {
-      const newProj = await createProject(roomCode, name);
-      const nextProjects = [...projects, newProj];
-      setProjects(nextProjects);
-      onProjectsLoaded?.(nextProjects);
-      setActiveProject(newProj.id);
-    }
-  }
-
   const activeProject = projects.find(p => p.id === activeProjectId);
 
   return (
     <>
-    <div className="w-[250px] min-w-[250px] border-r border-border bg-muted/30 flex flex-col h-full">
-      <div className="p-4 border-b border-border flex items-center justify-between">
-        <h2 className="font-semibold text-sm truncate">Room: {roomCode}</h2>
-        <button onClick={() => setShowSettings(true)} className="text-muted-foreground hover:text-foreground">
-          <Settings size={16} />
+    <div className="w-[200px] min-w-[200px] border-r border-border bg-muted/30 flex flex-col h-full">
+      <div className="p-3 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <div className="flex-shrink-0 flex items-center justify-center text-primary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 18l6-6-6-6" />
+              <path d="M8 6l-6 6 6 6" />
+            </svg>
+          </div>
+          <h2 className="font-semibold text-[13px] truncate tracking-wider text-muted-foreground">ROOM: {roomCode}</h2>
+        </div>
+        <button onClick={() => setShowSettings(true)} className="text-muted-foreground hover:text-foreground shrink-0 ml-2">
+          <Settings size={15} />
         </button>
       </div>
 
-      <div className="p-2 border-b border-border">
-        <div className="flex items-center justify-between px-2 py-1">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Projects</span>
-          {(userRole === "owner" || userRole === "editor") && (
-            <button onClick={handleCreateProject} className="text-muted-foreground hover:text-foreground">
-              <Plus size={14} />
-            </button>
-          )}
-        </div>
-        
-        {loading ? (
-          <div className="px-2 py-1 text-sm text-muted-foreground">Loading...</div>
-        ) : (
-          <select 
-            value={activeProjectId || ""} 
-            onChange={(e) => setActiveProject(e.target.value)}
-            className="w-full mt-1 bg-background border border-border rounded px-2 py-1 text-sm focus:outline-none"
-          >
-            {projects.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        )}
-      </div>
 
       <div className="flex-1 overflow-y-auto py-2">
         {activeProject ? (
@@ -89,7 +69,7 @@ export function Sidebar({ roomCode, userRole, onProjectsLoaded }: { roomCode: st
         )}
       </div>
     </div>
-    {showSettings && <RoomSettings roomCode={roomCode} onClose={() => setShowSettings(false)} />}
+    {showSettings && <RoomSettings roomCode={roomCode} userRole={userRole} onClose={() => setShowSettings(false)} />}
     </>
   );
 }

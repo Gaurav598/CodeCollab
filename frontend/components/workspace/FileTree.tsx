@@ -3,148 +3,52 @@
 import { useState, useEffect } from "react";
 import { Project, FileEntry, createFile, renameFile, deleteFile } from "@/services/workspaceService";
 import { useWorkspaceStore } from "@/store/workspaceStore";
-import { FileCode, Folder, FolderOpen, MoreVertical, Plus } from "lucide-react";
+import { useModalStore } from "@/store/modalStore";
+import { FileCode, MoreVertical, Plus } from "lucide-react";
 
-type TreeNode = {
-  name: string;
-  path: string;
-  type: "file" | "folder";
-  children?: Record<string, TreeNode>;
-  childrenArray?: TreeNode[];
-  file?: FileEntry;
-};
-
-function buildTree(files: FileEntry[]): TreeNode[] {
-  const root: Record<string, TreeNode> = {};
-
-  files.forEach(file => {
-    const parts = file.path.split('/');
-    let currentLevel = root;
-    let currentPath = '';
-
-    parts.forEach((part, index) => {
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      const isFile = index === parts.length - 1;
-
-      if (!currentLevel[part]) {
-        currentLevel[part] = {
-          name: part,
-          path: currentPath,
-          type: isFile ? "file" : "folder",
-          children: isFile ? undefined : {},
-        };
-      }
-
-      if (isFile) {
-        currentLevel[part].file = file;
-        currentLevel[part].type = "file";
-      }
-
-      if (!isFile) {
-        currentLevel = currentLevel[part].children!;
-      }
-    });
-  });
-
-  function sortNodes(nodes: Record<string, TreeNode>): TreeNode[] {
-    return Object.values(nodes)
-      .filter(node => !(node.type === "file" && node.name === ".gitkeep")) // Hide .gitkeep files
-      .sort((a, b) => {
-        if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      })
-      .map(node => {
-        if (node.children) {
-          node.childrenArray = sortNodes(node.children);
-        }
-        return node;
-      });
-  }
-
-  return sortNodes(root);
-}
-
-function Node({ node, level, project, userRole, onFileChange, onContextMenu }: { 
-  node: TreeNode, 
-  level: number, 
+function Node({ file, project, userRole, onFileChange, onContextMenu }: { 
+  file: FileEntry, 
   project: Project,
   userRole: string,
   onFileChange: () => void,
-  onContextMenu: (e: React.MouseEvent, node: TreeNode) => void
+  onContextMenu: (e: React.MouseEvent, file: FileEntry) => void
 }) {
-  const { openTab, activeTabId, expandedFolders, toggleFolder } = useWorkspaceStore();
-  const isExpanded = expandedFolders.includes(node.path);
+  const { openTab, activeTabId } = useWorkspaceStore();
 
   const handleClick = () => {
-    if (node.type === "folder") {
-      toggleFolder(node.path);
-    } else if (node.file) {
-      openTab({
-        id: node.file.id,
-        projectId: project.id,
-        path: node.file.path,
-        language: node.file.language,
-      });
-    }
+    openTab({
+      id: file.id,
+      projectId: project.id,
+      path: file.path,
+      language: file.language,
+    });
   };
 
-  const isActive = node.file && activeTabId === node.file.id;
+  const isActive = activeTabId === file.id;
 
   return (
-    <div>
-      <div
-        className={`flex items-center px-4 py-1 cursor-pointer text-sm transition-colors group ${
-          isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-        }`}
-        style={{ paddingLeft: `${(level * 12) + 16}px` }}
-        onClick={handleClick}
-        onContextMenu={(e) => onContextMenu(e, node)}
-      >
-        <span className="mr-2">
-          {node.type === "folder" ? (
-            isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />
-          ) : (
-            <FileCode size={14} />
-          )}
-        </span>
-        <span className="truncate flex-1">{node.name}</span>
-        
-        {(userRole === "owner" || userRole === "editor") && (
-          <button 
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded-sm hover:bg-muted-foreground/20 ml-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              onContextMenu(e, node);
-            }}
-          >
-            <MoreVertical size={14} />
-          </button>
-        )}
-      </div>
-
-      {node.type === "folder" && isExpanded && node.childrenArray && (
-        <div>
-          {node.childrenArray.length === 0 ? (
-            <div 
-              className="text-xs text-muted-foreground/50 italic py-1" 
-              style={{ paddingLeft: `${((level + 1) * 12) + 16 + 22}px` }}
-            >
-              Empty
-            </div>
-          ) : (
-            node.childrenArray.map((child) => (
-              <Node 
-                key={child.path} 
-                node={child} 
-                level={level + 1} 
-                project={project} 
-                userRole={userRole} 
-                onFileChange={onFileChange}
-                onContextMenu={onContextMenu}
-              />
-            ))
-          )}
-        </div>
+    <div
+      className={`flex items-center px-4 py-1.5 cursor-pointer text-[13px] transition-colors group ${
+        isActive ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+      }`}
+      onClick={handleClick}
+      onContextMenu={(e) => onContextMenu(e, file)}
+    >
+      <span className="mr-2 opacity-80">
+        <FileCode size={15} />
+      </span>
+      <span className="truncate flex-1">{file.path}</span>
+      
+      {(userRole === "owner" || userRole === "editor") && (
+        <button 
+          className="opacity-0 group-hover:opacity-100 p-0.5 rounded-sm hover:bg-muted-foreground/20 ml-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            onContextMenu(e, file);
+          }}
+        >
+          <MoreVertical size={14} />
+        </button>
       )}
     </div>
   );
@@ -154,7 +58,7 @@ export function FileTree({ project, userRole, onFileChange }: { project: Project
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    node: TreeNode | null;
+    file: FileEntry | null;
   } | null>(null);
 
   useEffect(() => {
@@ -163,108 +67,84 @@ export function FileTree({ project, userRole, onFileChange }: { project: Project
     return () => window.removeEventListener("click", handleClick);
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent, node: TreeNode | null) => {
+  const handleContextMenu = (e: React.MouseEvent, file: FileEntry | null) => {
     e.preventDefault();
     if (userRole !== "owner" && userRole !== "editor") return;
-    setContextMenu({ x: e.clientX, y: e.clientY, node });
+    setContextMenu({ x: e.clientX, y: e.clientY, file });
   };
 
-  const handleCreateFile = async (basePath: string) => {
-    const name = prompt("File name:");
+  const handleCreateFile = async () => {
+    const name = await useModalStore.getState().showPrompt("File name:", "", "Enter the name of the new file.");
     if (!name) return;
-    const path = basePath ? `${basePath}/${name}` : name;
+    
+    const language = "javascript";
+
     try {
-      await createFile(project.id, path);
+      await createFile(project.id, name, language);
       onFileChange();
     } catch (err: any) {
-      alert(err.message);
+      useModalStore.getState().showAlert("Error", err.message);
     }
   };
 
-  const handleCreateFolder = async (basePath: string) => {
-    const name = prompt("Folder name:");
-    if (!name) return;
-    const path = basePath ? `${basePath}/${name}/.gitkeep` : `${name}/.gitkeep`;
+  const handleRename = async (file: FileEntry) => {
+    const newName = await useModalStore.getState().showPrompt("New name:", file.path, "Enter the new name.");
+    if (!newName || newName === file.path) return;
+
     try {
-      await createFile(project.id, path);
+      await renameFile(file.id, newName);
+      useWorkspaceStore.getState().updateTabPath(file.id, newName);
       onFileChange();
     } catch (err: any) {
-      alert(err.message);
+      useModalStore.getState().showAlert("Error", err.message);
     }
   };
 
-  const handleRename = async (node: TreeNode) => {
-    const newName = prompt("New name:", node.name);
-    if (!newName || newName === node.name) return;
+  const handleDelete = async (file: FileEntry) => {
+    const confirmed = await useModalStore.getState().showConfirm("Delete", `Are you sure you want to delete ${file.path}?`);
+    if (!confirmed) return;
 
     try {
-      if (node.type === "file" && node.file) {
-        const newPath = node.path.substring(0, node.path.lastIndexOf(node.name)) + newName;
-        await renameFile(node.file.id, newPath);
-      } else if (node.type === "folder") {
-        const newPathBase = node.path.substring(0, node.path.lastIndexOf(node.name)) + newName;
-        const filesToRename = project.files.filter(f => f.path.startsWith(node.path + "/"));
-        await Promise.all(filesToRename.map(f => {
-          const updatedPath = f.path.replace(node.path, newPathBase);
-          return renameFile(f.id, updatedPath);
-        }));
-      }
+      await deleteFile(file.id);
       onFileChange();
     } catch (err: any) {
-      alert(err.message);
+      useModalStore.getState().showAlert("Error", err.message);
     }
   };
 
-  const handleDelete = async (node: TreeNode) => {
-    if (!confirm(`Are you sure you want to delete ${node.name}?`)) return;
-
-    try {
-      if (node.type === "file" && node.file) {
-        await deleteFile(node.file.id);
-      } else if (node.type === "folder") {
-        const filesToDelete = project.files.filter(f => f.path.startsWith(node.path + "/"));
-        await Promise.all(filesToDelete.map(f => deleteFile(f.id)));
-      }
-      onFileChange();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  };
-
-  const tree = buildTree(project.files);
+  // Filter out any lingering .gitkeep files that might have been used for folders previously
+  const files = project.files
+    .filter(f => !f.path.endsWith('.gitkeep'))
+    .sort((a, b) => a.path.localeCompare(b.path));
 
   return (
     <div className="relative h-full" onContextMenu={(e) => handleContextMenu(e, null)}>
-      <div className="flex items-center justify-between px-4 py-1 group">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Explorer</span>
+      <div className="flex items-center justify-between px-4 py-2 group">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">File Manager</span>
         {(userRole === "owner" || userRole === "editor") && (
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={() => handleCreateFile("")} className="text-muted-foreground hover:text-foreground" title="New File">
-              <Plus size={14} />
-            </button>
-            <button onClick={() => handleCreateFolder("")} className="text-muted-foreground hover:text-foreground" title="New Folder">
-              <Folder size={14} />
+            <button onClick={handleCreateFile} className="text-muted-foreground hover:text-foreground p-1" title="New File">
+              <Plus size={15} />
             </button>
           </div>
         )}
       </div>
 
       <div className="mt-1 pb-20">
-        {tree.map(node => (
+        {files.map(file => (
           <Node 
-            key={node.path} 
-            node={node} 
-            level={0} 
+            key={file.id} 
+            file={file} 
             project={project} 
             userRole={userRole} 
             onFileChange={onFileChange} 
             onContextMenu={handleContextMenu}
           />
         ))}
-        {tree.length === 0 && (
+        {files.length === 0 && (
           <div className="px-4 py-4 text-sm text-muted-foreground italic text-center">
             Workspace is empty.
-            <br/>Right-click to create a file or folder.
+            <br/>Right-click to create a file.
           </div>
         )}
       </div>
@@ -275,23 +155,13 @@ export function FileTree({ project, userRole, onFileChange }: { project: Project
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          {contextMenu.node ? (
+          {contextMenu.file ? (
             <>
-              {contextMenu.node.type === "folder" && (
-                <>
-                  <button className="w-full text-left px-4 py-1.5 hover:bg-muted" onClick={() => { handleCreateFile(contextMenu.node!.path); setContextMenu(null); }}>New File</button>
-                  <button className="w-full text-left px-4 py-1.5 hover:bg-muted" onClick={() => { handleCreateFolder(contextMenu.node!.path); setContextMenu(null); }}>New Folder</button>
-                  <div className="h-px bg-border my-1" />
-                </>
-              )}
-              <button className="w-full text-left px-4 py-1.5 hover:bg-muted" onClick={() => { handleRename(contextMenu.node!); setContextMenu(null); }}>Rename</button>
-              <button className="w-full text-left px-4 py-1.5 hover:bg-destructive hover:text-destructive-foreground text-red-500" onClick={() => { handleDelete(contextMenu.node!); setContextMenu(null); }}>Delete</button>
+              <button className="w-full text-left px-4 py-1.5 hover:bg-muted" onClick={() => { handleRename(contextMenu.file!); setContextMenu(null); }}>Rename</button>
+              <button className="w-full text-left px-4 py-1.5 hover:bg-destructive hover:text-destructive-foreground text-red-500" onClick={() => { handleDelete(contextMenu.file!); setContextMenu(null); }}>Delete</button>
             </>
           ) : (
-            <>
-              <button className="w-full text-left px-4 py-1.5 hover:bg-muted" onClick={() => { handleCreateFile(""); setContextMenu(null); }}>New File</button>
-              <button className="w-full text-left px-4 py-1.5 hover:bg-muted" onClick={() => { handleCreateFolder(""); setContextMenu(null); }}>New Folder</button>
-            </>
+            <button className="w-full text-left px-4 py-1.5 hover:bg-muted" onClick={() => { handleCreateFile(); setContextMenu(null); }}>New File</button>
           )}
         </div>
       )}

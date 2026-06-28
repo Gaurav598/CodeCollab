@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/workspace/Sidebar";
 import { Tabs } from "@/components/workspace/Tabs";
+import { Save } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const CollabEditor = dynamic(
@@ -16,26 +17,47 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { getRoom, Project, Room } from "@/services/workspaceService";
 import { useAuthStore } from "@/store/authStore";
 import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useChatStore } from "@/store/chatStore";
 
 export default function RoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
-  const { user } = useAuthStore();
+  const router = useRouter();
+  const { user, isLoading } = useAuthStore();
   const closeAllTabs = useWorkspaceStore(state => state.closeAllTabs);
   const [room, setRoom] = useState<Room | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Clear stale tabs from a previous room session to prevent 404s on Yjs doc connect
+  // Clear stale tabs only if switching to a completely different room
   useEffect(() => {
-    closeAllTabs();
-  }, [roomCode]);
+    const state = useWorkspaceStore.getState();
+    if (state.activeRoomCode && state.activeRoomCode !== roomCode) {
+      closeAllTabs();
+    }
+    state.setActiveRoomCode(roomCode);
+  }, [roomCode, closeAllTabs]);
+
+  // STOMP Presence and Chat subscription bound to Room lifecycle
+  useEffect(() => {
+    if (room?.id) {
+      const { subscribeToRoom, unsubscribeFromRoom } = useChatStore.getState();
+      subscribeToRoom(room.id);
+      return () => {
+        unsubscribeFromRoom(room.id);
+      };
+    }
+  }, [room?.id]);
 
   useEffect(() => {
-    if (user && roomCode) {
-      fetchRoom();
+    if (!isLoading) {
+      if (user && roomCode) {
+        fetchRoom();
+      } else if (!user) {
+        router.push("/login");
+      }
     }
-  }, [user, roomCode]);
+  }, [user, isLoading, roomCode, router]);
 
   async function fetchRoom() {
     try {
@@ -48,8 +70,12 @@ export default function RoomPage() {
     }
   }
 
-  if (loading) {
-    return <div className="p-8 text-muted-foreground">Loading workspace...</div>;
+  if (isLoading || loading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-background text-muted-foreground">
+        Loading workspace...
+      </div>
+    );
   }
 
   if (error || !room) {
@@ -73,9 +99,14 @@ export default function RoomPage() {
         <div className="flex h-11 items-center justify-between border-b border-border bg-background/95 px-3">
           <Tabs />
           <div className="flex items-center gap-2">
-            <span className="hidden rounded border border-border px-2 py-1 text-xs text-muted-foreground md:inline">
-              Cmd/Ctrl K
-            </span>
+            <button
+              onClick={() => window.dispatchEvent(new Event("collabcode:download-active-file"))}
+              className="hidden md:flex items-center gap-1.5 rounded border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Download File Locally"
+            >
+              <Save size={14} />
+              Download
+            </button>
             <NotificationBell />
             <ThemeToggle />
           </div>

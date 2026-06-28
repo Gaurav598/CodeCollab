@@ -13,6 +13,7 @@ interface WorkspaceState {
   activeTabId: string | null;
   expandedFolders: string[]; // paths of folders that are expanded in the file tree
   activeProjectId: string | null;
+  activeRoomCode: string | null;
 
   // Actions
   openTab: (tab: TabData) => void;
@@ -20,6 +21,9 @@ interface WorkspaceState {
   setActiveTab: (tabId: string) => void;
   toggleFolder: (folderPath: string) => void;
   setActiveProject: (projectId: string) => void;
+  setActiveRoomCode: (roomCode: string) => void;
+  updateTabPath: (tabId: string, path: string) => void;
+  updateTabLanguage: (tabId: string, language: string) => void;
   closeAllTabs: () => void;
 }
 
@@ -30,6 +34,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       activeTabId: null,
       expandedFolders: [],
       activeProjectId: null,
+      activeRoomCode: null,
 
       openTab: (tab) => {
         const { openTabs } = get();
@@ -63,6 +68,22 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       },
 
       setActiveProject: (projectId) => set({ activeProjectId: projectId }),
+
+      setActiveRoomCode: (roomCode) => set({ activeRoomCode: roomCode }),
+
+      updateTabPath: (tabId, path) => {
+        const { openTabs } = get();
+        set({
+          openTabs: openTabs.map(t => t.id === tabId ? { ...t, path } : t)
+        });
+      },
+
+      updateTabLanguage: (tabId, language) => {
+        const { openTabs } = get();
+        set({
+          openTabs: openTabs.map(t => t.id === tabId ? { ...t, language } : t)
+        });
+      },
 
       closeAllTabs: () => set({ openTabs: [], activeTabId: null }),
     }),

@@ -11,7 +11,12 @@ import { useAuth } from "@/hooks/useAuth";
 export function SessionBootstrap() {
   const { bootstrap } = useAuth();
   useEffect(() => {
-    bootstrap();
+    bootstrap().then(() => {
+      // Once authenticated, connect STOMP
+      import("@/services/stompClient").then(({ stompService }) => {
+        stompService.connect();
+      });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;

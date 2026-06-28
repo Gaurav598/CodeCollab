@@ -18,11 +18,7 @@ export function ChatPanel({ roomId, onClose }: ChatPanelProps) {
 
     useEffect(() => {
         useChatStore.getState().fetchHistory(roomId);
-        subscribeToRoom(roomId);
-        return () => {
-            unsubscribeFromRoom(roomId);
-        };
-    }, [roomId, subscribeToRoom, unsubscribeFromRoom]);
+    }, [roomId]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -37,7 +33,7 @@ export function ChatPanel({ roomId, onClose }: ChatPanelProps) {
     };
 
     return (
-        <div className="flex flex-col h-full w-80 bg-zinc-900 border-l border-zinc-800 text-zinc-100">
+        <div className="flex flex-col h-full w-full bg-zinc-900 border-l border-zinc-800 text-zinc-100">
             <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
                 <h2 className="text-lg font-semibold">Room Chat</h2>
                 {onClose && (
@@ -72,19 +68,19 @@ export function ChatPanel({ roomId, onClose }: ChatPanelProps) {
                 <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSend} className="p-4 border-t border-zinc-800 flex items-center">
+            <form onSubmit={handleSend} className="p-4 border-t border-zinc-800 flex items-center gap-2">
                 <input
                     type="text"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder="Type a message..."
-                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-l-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-md px-3 h-9 text-[13px] focus:outline-none focus:ring-1 focus:ring-blue-500 transition-shadow"
                 />
                 <button
                     type="submit"
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-r-md transition-colors"
+                    className="flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white w-9 h-9 rounded-md transition-colors shrink-0"
                 >
-                    <Send size={18} />
+                    <Send size={15} />
                 </button>
             </form>
         </div>

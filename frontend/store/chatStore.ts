@@ -46,17 +46,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => ({
             messagesByRoom: {
                 ...state.messagesByRoom,
-                [roomId]: [...messages].reverse(), // API returns latest first
+                [roomId]: [...messages], // in-memory messages are already in order (oldest first)
             },
         }));
     },
 
     fetchHistory: async (roomId) => {
         try {
-            const data = await apiFetch<any>(`/chat/${roomId}/history?page=0&size=50`);
-            if (data && data.content) {
-                get().setMessages(roomId, data.content);
-            }
+            const data = await apiFetch<ChatMessage[] | { content: ChatMessage[] }>(`/chat/${roomId}/history`);
+            // Handle both List (new ephemeral) and Page (legacy) responses
+            const messages = Array.isArray(data) ? data : (data as any)?.content ?? [];
+            get().setMessages(roomId, messages);
         } catch (error) {
             console.error("Failed to fetch chat history", error);
         }
@@ -76,18 +76,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const chatMsg = JSON.parse(stompMessage.body) as ChatMessage;
             get().addMessage(roomId, chatMsg);
         });
-
-        // Also subscribe to presence if needed
-        stompService.subscribe(`/topic/room.${roomId}.presence`, (stompMessage) => {
-            const presenceEvent = JSON.parse(stompMessage.body);
-            console.log(`[Presence] ${presenceEvent.username} ${presenceEvent.status}`);
-            // Could add a toast or update a presence list here
-        });
     },
 
     unsubscribeFromRoom: (roomId) => {
         stompService.publish('/app/room.leave', { roomId });
         stompService.unsubscribe(`/topic/room.${roomId}.chat`);
         stompService.unsubscribe(`/topic/room.${roomId}.presence`);
+        // Clear ephemeral messages locally on leave
+        set((state) => {
+            const next = { ...state.messagesByRoom };
+            delete next[roomId];
+            return { messagesByRoom: next };
+        });
     },
 }));

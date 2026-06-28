@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PresenceService {
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final ChatService chatService;
 
     // RoomId -> Set of UserIds
     private final Map<UUID, Set<UUID>> roomUsers = new ConcurrentHashMap<>();
@@ -27,8 +28,9 @@ public class PresenceService {
     // SessionId -> RoomId
     private final Map<String, UUID> sessionRooms = new ConcurrentHashMap<>();
 
-    public PresenceService(SimpMessagingTemplate messagingTemplate) {
+    public PresenceService(SimpMessagingTemplate messagingTemplate, ChatService chatService) {
         this.messagingTemplate = messagingTemplate;
+        this.chatService = chatService;
     }
 
     public void userJoined(String sessionId, UUID roomId, CollabUserDetails user) {
@@ -50,6 +52,8 @@ public class PresenceService {
                 usersInRoom.remove(user.getId());
                 if (usersInRoom.isEmpty()) {
                     roomUsers.remove(roomId);
+                    // Clear ephemeral chat messages when the last user leaves
+                    chatService.clearRoomMessages(roomId);
                 }
             }
             broadcastPresence(roomId, user, "LEFT");
@@ -79,3 +83,4 @@ public class PresenceService {
         }
     }
 }
+

@@ -2,58 +2,68 @@ package com.collabcode.chat.service;
 
 import com.collabcode.auth.domain.User;
 import com.collabcode.auth.repository.UserRepository;
-import com.collabcode.chat.domain.Message;
 import com.collabcode.chat.dto.ChatMessageDto;
-import com.collabcode.chat.repository.MessageRepository;
 import com.collabcode.common.exception.ApiException;
 import com.collabcode.room.service.RoomAccessService;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
+/**
+ * Ephemeral chat service — messages are stored in-memory only.
+ * No MongoDB persistence. Messages are cleared when the room becomes empty.
+ */
 @Service
 public class ChatService {
 
     private static final int MAX_MESSAGE_LENGTH = 4_000;
+    private static final int MAX_HISTORY_SIZE = 200;
     private static final Pattern MENTION_PATTERN = Pattern.compile("@([a-zA-Z0-9_]+)");
 
-    private final MessageRepository messageRepository;
+    /** In-memory store: roomId -> list of chat messages (newest last) */
+    private final Map<UUID, CopyOnWriteArrayList<ChatMessageDto>> roomMessages = new ConcurrentHashMap<>();
+
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final RoomAccessService roomAccessService;
 
-    public ChatService(MessageRepository messageRepository,
-                       UserRepository userRepository,
+    public ChatService(UserRepository userRepository,
                        NotificationService notificationService,
                        RoomAccessService roomAccessService) {
-        this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.roomAccessService = roomAccessService;
     }
 
-    
-    @Transactional
     public ChatMessageDto saveMessage(UUID roomId, UUID senderId, String content) {
         roomAccessService.requireMember(roomId, senderId);
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
         String normalizedContent = normalizeMessage(content);
 
-        Message message = new Message();
-        message.setRoomId(roomId);
-        message.setSenderId(senderId);
-        message.setContent(normalizedContent);
+        ChatMessageDto dto = new ChatMessageDto();
+        dto.setId(UUID.randomUUID());
+        dto.setSenderId(senderId);
+        dto.setSenderName(sender.getUsername());
+        dto.setMessage(normalizedContent);
+        dto.setCreatedAt(Instant.now());
+        dto.setDeleted(false);
 
-        Message saved = messageRepository.save(message);
-        
+        roomMessages.computeIfAbsent(roomId, k -> new CopyOnWriteArrayList<>()).add(dto);
+
+        // Cap the in-memory list to avoid unbounded growth
+        CopyOnWriteArrayList<ChatMessageDto> list = roomMessages.get(roomId);
+        if (list != null && list.size() > MAX_HISTORY_SIZE) {
+            list.remove(0);
+        }
+
+        // Handle @mentions
         java.util.regex.Matcher matcher = MENTION_PATTERN.matcher(normalizedContent);
-        java.util.Set<String> mentionedUsernames = new java.util.HashSet<>();
+        Set<String> mentionedUsernames = new HashSet<>();
         while (matcher.find()) {
             mentionedUsernames.add(matcher.group(1));
         }
@@ -66,24 +76,23 @@ public class ChatService {
                     "New Mention",
                     sender.getUsername() + " mentioned you in a room: " + normalizedContent
                 ));
-        
-        return ChatMessageDto.fromEntity(saved, sender.getUsername());
+
+        return dto;
     }
 
-    
-    @Transactional(readOnly = true)
-    public Page<ChatMessageDto> getMessageHistory(UUID roomId, UUID userId, Pageable pageable) {
+    public List<ChatMessageDto> getMessageHistory(UUID roomId, UUID userId) {
         roomAccessService.requireMember(roomId, userId);
-        Page<Message> messagePage = messageRepository.findByRoomIdOrderByCreatedAtDesc(roomId, pageable);
-        
-        java.util.Set<UUID> senderIds = messagePage.stream()
-                .map(Message::getSenderId)
-                .collect(java.util.stream.Collectors.toSet());
-                
-        java.util.Map<UUID, String> senderNames = new java.util.HashMap<>();
-        userRepository.findAllById(senderIds).forEach(u -> senderNames.put(u.getId(), u.getUsername()));
-        
-        return messagePage.map(msg -> ChatMessageDto.fromEntity(msg, senderNames.getOrDefault(msg.getSenderId(), "Unknown User")));
+        List<ChatMessageDto> messages = roomMessages.get(roomId);
+        if (messages == null) return Collections.emptyList();
+        return Collections.unmodifiableList(messages);
+    }
+
+    /**
+     * Called by PresenceService when the last user leaves a room.
+     * Clears all ephemeral messages for that room.
+     */
+    public void clearRoomMessages(UUID roomId) {
+        roomMessages.remove(roomId);
     }
 
     private String normalizeMessage(String content) {
@@ -97,3 +106,4 @@ public class ChatService {
         return normalized;
     }
 }
+

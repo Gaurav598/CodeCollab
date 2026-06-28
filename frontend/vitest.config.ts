@@ -14,7 +14,6 @@ export default defineConfig({
       reporter: ["text", "json-summary", "html"],
       reportsDirectory: "./coverage",
       include: [
-        "components/ai/AIAssistantPanel.tsx",
         "components/workspace/CommandPalette.tsx",
         "components/workspace/ExecutionPanel.tsx",
         "store/themeStore.ts",

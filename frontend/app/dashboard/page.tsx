@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getUserRooms, createRoom, joinRoom, Room } from "@/services/workspaceService";
 import { useAuthStore } from "@/store/authStore";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, isLoading } = useAuthStore();
+  const { signOut } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,13 +53,27 @@ export default function DashboardPage() {
     }
   }
 
+  if (isLoading) {
+    return <div className="p-8 text-muted-foreground">Loading session...</div>;
+  }
+
   if (!user) {
     return <div className="p-8">Please log in to view your dashboard.</div>;
   }
 
+  const handleLogout = async () => {
+    await signOut();
+    router.push("/login");
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <button onClick={handleLogout} className="text-sm text-red-400 hover:text-red-300">
+          Logout ({user.username})
+        </button>
+      </div>
       
       {error && (
         <div className="bg-red-500/10 text-red-500 p-4 rounded mb-6">

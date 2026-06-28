@@ -3,12 +3,11 @@ package com.collabcode.chat.controller;
 import com.collabcode.chat.dto.ChatMessageDto;
 import com.collabcode.chat.service.ChatService;
 import com.collabcode.auth.security.CollabUserDetails;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -21,10 +20,12 @@ public class ChatRestController {
         this.chatService = chatService;
     }
 
+    /** GET /chat/{roomId}/history — returns in-memory ephemeral messages only */
     @GetMapping("/{roomId}/history")
-    public ResponseEntity<Page<ChatMessageDto>> getHistory(@PathVariable UUID roomId,
-                                                           Pageable pageable,
-                                                           @AuthenticationPrincipal CollabUserDetails user) {
-        return ResponseEntity.ok(chatService.getMessageHistory(roomId, user.getId(), pageable));
+    public ResponseEntity<List<ChatMessageDto>> getHistory(
+            @PathVariable UUID roomId,
+            @AuthenticationPrincipal CollabUserDetails user) {
+        return ResponseEntity.ok(chatService.getMessageHistory(roomId, user.getId()));
     }
 }
+

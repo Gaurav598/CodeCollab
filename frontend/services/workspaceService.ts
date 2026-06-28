@@ -46,6 +46,10 @@ export async function getRoom(roomCode: string): Promise<Room> {
   return apiFetch<Room>(`/rooms/${roomCode}`);
 }
 
+export async function deleteRoom(roomCode: string): Promise<{ message: string }> {
+  return apiFetch(`/rooms/${roomCode}`, { method: "DELETE" });
+}
+
 export async function joinRoom(roomCode: string): Promise<{ message: string; roomCode: string; role: string }> {
   return apiFetch(`/rooms/${roomCode}/join`, { method: "POST" });
 }
@@ -87,6 +91,13 @@ export async function renameFile(fileId: string, newPath: string, newLanguage?: 
   return apiFetch<FileEntry>(`/files/${fileId}`, {
     method: "PATCH",
     body: JSON.stringify({ path: newPath, language: newLanguage }),
+  });
+}
+
+export async function updateFileContent(fileId: string, content: string): Promise<FileEntry> {
+  return apiFetch<FileEntry>(`/files/${fileId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ content }),
   });
 }
 

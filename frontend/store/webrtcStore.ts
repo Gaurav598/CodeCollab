@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { stompService } from '@/services/stompClient';
+import { useModalStore } from './modalStore';
 
 interface WebRTCState {
     localStream: MediaStream | null;
@@ -8,11 +9,13 @@ interface WebRTCState {
     isAudioMuted: boolean;
     isVideoMuted: boolean;
     isScreenSharing: boolean;
+    isRemoteScreenSharing: boolean;
+    remoteScreenStream: MediaStream | null;
     setLocalStream: (stream: MediaStream) => void;
     addRemoteStream: (userId: string, stream: MediaStream) => void;
     removeRemoteStream: (userId: string) => void;
     toggleAudio: () => void;
-    toggleVideo: () => void;
+    toggleVideo: () => Promise<void>;
     startScreenShare: () => Promise<void>;
     stopScreenShare: () => Promise<void>;
     addPeerConnection: (userId: string, pc: RTCPeerConnection) => void;
@@ -31,6 +34,8 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
     isAudioMuted: false,
     isVideoMuted: false,
     isScreenSharing: false,
+    isRemoteScreenSharing: false,
+    remoteScreenStream: null,
 
     setLocalStream: (stream) => set({ localStream: stream }),
     
@@ -67,10 +72,20 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
             });
         }
 
-        // Handle remote tracks
+        // Handle remote tracks — detect if it's a screen share (display surface)
         pc.ontrack = (event) => {
             if (event.streams && event.streams[0]) {
-                addRemoteStream(targetUserId, event.streams[0]);
+                const stream = event.streams[0];
+                const videoTrack = stream.getVideoTracks()[0];
+                // Heuristic: if the video track label contains 'screen' or 'display' it's a screen share
+                const isScreen = videoTrack?.label?.toLowerCase().includes('screen') ||
+                                 videoTrack?.label?.toLowerCase().includes('display') ||
+                                 (videoTrack?.getSettings?.()?.displaySurface != null);
+                if (isScreen) {
+                    set({ isRemoteScreenSharing: true, remoteScreenStream: stream });
+                } else {
+                    addRemoteStream(targetUserId, stream);
+                }
             }
         };
 
@@ -118,13 +133,40 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
         }
     },
 
-    toggleVideo: () => {
-        const { localStream, isVideoMuted } = get();
-        if (localStream) {
-            localStream.getVideoTracks().forEach(track => {
-                track.enabled = isVideoMuted;
-            });
-            set({ isVideoMuted: !isVideoMuted });
+    toggleVideo: async () => {
+        const { localStream, isVideoMuted, peerConnections } = get();
+        if (isVideoMuted) {
+            try {
+                const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const newVideoTrack = newStream.getVideoTracks()[0];
+                
+                if (localStream) {
+                    localStream.addTrack(newVideoTrack);
+                }
+                
+                Object.values(peerConnections).forEach(pc => {
+                    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+                    if (sender) {
+                        sender.replaceTrack(newVideoTrack);
+                    }
+                });
+                set({ isVideoMuted: false, localStream: localStream || newStream });
+            } catch (err) {
+                console.error("Failed to enable video (permissions denied?)", err);
+                setTimeout(() => {
+                    useModalStore.getState().showAlert("Camera Error", "Failed to access camera. Please check your browser permissions.");
+                }, 0);
+            }
+        } else {
+            if (localStream) {
+                localStream.getVideoTracks().forEach(track => {
+                    track.stop();
+                    localStream.removeTrack(track);
+                });
+                // We don't remove the track from RTCPeerConnection, keeping the sender active 
+                // but stopped so peers see black instead of crashing the connection.
+            }
+            set({ isVideoMuted: true });
         }
     },
 

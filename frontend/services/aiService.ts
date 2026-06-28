@@ -59,10 +59,11 @@ const featurePath: Record<AiFeature, string> = {
   "generate-docs": "/ai/generate-docs",
 };
 
-export function requestAutocomplete(payload: AiRequest): Promise<AutocompleteResponse> {
+export function requestAutocomplete(payload: AiRequest, signal?: AbortSignal): Promise<AutocompleteResponse> {
   return apiFetch<AutocompleteResponse>("/ai/autocomplete", {
     method: "POST",
     body: JSON.stringify(payload),
+    signal,
   });
 }
 

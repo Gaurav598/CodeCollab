@@ -22,16 +22,7 @@ const redisPersistence = new RedisPersistence({
   redisOpts: config.REDIS_URL,
 });
 
-// Periodic auto-save every 5 seconds
-const autoSaveInterval = setInterval(() => {
-  docs.forEach((doc: any, docName: string) => {
-    if (docName.startsWith("file:")) {
-      const fileId = docName.split(":")[1];
-      const base64Str = Buffer.from(Y.encodeStateAsUpdate(doc)).toString('base64');
-      persistDocument(fileId, base64Str).catch(console.error);
-    }
-  });
-}, 5000);
+// Periodic auto-save removed: architecture moved to raw text and frontend handles auto-saves.
 
 app.use(express.json());
 
@@ -134,7 +125,6 @@ server.listen(config.PORT, () => {
 
 async function shutdown() {
   console.log("Shutting down sync-service...");
-  clearInterval(autoSaveInterval); // stop periodic saves before destroying Redis
   wss.close();
   await closeAwarenessRedis();
   await redisPersistence.destroy();

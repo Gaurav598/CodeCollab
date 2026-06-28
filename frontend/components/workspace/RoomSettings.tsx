@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RoomMember, getRoomMembers } from "@/services/workspaceService";
-import { X } from "lucide-react";
+import { RoomMember, getRoomMembers, deleteRoom } from "@/services/workspaceService";
+import { X, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useModalStore } from "@/store/modalStore";
 
-export function RoomSettings({ roomCode, onClose }: { roomCode: string, onClose: () => void }) {
+export function RoomSettings({ roomCode, userRole, onClose }: { roomCode: string, userRole: string, onClose: () => void }) {
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     fetchMembers();
@@ -66,6 +69,34 @@ export function RoomSettings({ roomCode, onClose }: { roomCode: string, onClose:
             </div>
           )}
         </div>
+
+        {userRole === "owner" && (
+          <div className="mt-8 pt-6 border-t border-border">
+            <h3 className="text-sm font-semibold text-red-500 uppercase tracking-wider mb-2">Danger Zone</h3>
+            <div className="bg-red-500/10 p-4 rounded-lg flex items-center justify-between">
+              <div className="text-sm text-red-500 max-w-[200px]">
+                Permanently delete this room and all its data.
+              </div>
+              <button 
+                onClick={async () => {
+                  const confirmed = await useModalStore.getState().showConfirm("Delete Room", "Are you sure you want to permanently delete this room? This action cannot be undone.");
+                  if (confirmed) {
+                    try {
+                      await deleteRoom(roomCode);
+                      router.push("/dashboard");
+                    } catch {
+                      useModalStore.getState().showAlert("Error", "Failed to delete room.");
+                    }
+                  }
+                }}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm font-medium transition-colors"
+              >
+                <Trash2 size={16} />
+                Delete Room
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

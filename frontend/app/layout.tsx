@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { SessionBootstrap } from "@/components/auth/SessionBootstrap";
 import { ThemeProvider } from "@/components/ui/ThemeProvider";
+import { GlobalModals } from "@/components/ui/GlobalModals";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,6 +24,7 @@ export default function RootLayout({
         <ThemeProvider>
           <SessionBootstrap />
           {children}
+          <GlobalModals />
         </ThemeProvider>
       </body>
     </html>

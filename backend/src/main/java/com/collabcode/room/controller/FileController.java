@@ -47,7 +47,7 @@ public class FileController {
             @PathVariable UUID fileId,
             @Valid @RequestBody PatchFileRequest request,
             @AuthenticationPrincipal UserDetails principal) {
-        return ResponseEntity.ok(fileService.patchFile(fileId, request.path(), request.language(), userId(principal)));
+        return ResponseEntity.ok(fileService.patchFile(fileId, request.path(), request.language(), request.content(), userId(principal)));
     }
 
     /** DELETE /files/:fileId */

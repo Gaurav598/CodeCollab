@@ -48,7 +48,7 @@ public class FileService {
 
     
     @Transactional
-    public Map<String, Object> patchFile(UUID fileId, String newPath, String newLanguage, UUID userId) {
+    public Map<String, Object> patchFile(UUID fileId, String newPath, String newLanguage, String content, UUID userId) {
         FileEntry file = findFile(fileId);
         roomAccessService.requireEditor(getRoomIdForFile(file), userId);
         if (newPath != null && !newPath.isBlank()) {
@@ -60,6 +60,13 @@ public class FileService {
             file.setPath(normalizedPath);
         }
         if (newLanguage != null && !newLanguage.isBlank()) file.setLanguage(normalizeLanguage(newLanguage));
+        
+        // Handle frontend debounced saves without using internal routes
+        // This is safe because requireEditor check runs above
+        if (content != null) {
+            file.setContent(content);
+        }
+        
         fileRepository.save(file);
         return fileDto(file);
     }
