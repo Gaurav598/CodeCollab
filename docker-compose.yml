@@ -38,15 +38,15 @@ services:
     environment:
       PORT: 1234
       REDIS_URL: redis://redis:6379
-      BACKEND_INTERNAL_URL: http://backend:8080/api/v1/internal
+      BACKEND_INTERNAL_URL: http://host.docker.internal:8080/api/v1/internal
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:-replace-with-a-strong-service-secret}
     ports:
       - "1234:1234"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_healthy
-      backend:
-        condition: service_started
 
   frontend:
     build:

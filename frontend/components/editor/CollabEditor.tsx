@@ -196,7 +196,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
     const initializeContent = async () => {
        if (hasLoadedContent.current.has(activeFile.id)) return;
        
-       // Wait for initial sync from WebSocket before checking if type is empty
+       // Wait for Yjs to sync state across clients first
        if (!provider.synced) {
          await new Promise<void>(resolve => {
            const onSync = () => {
@@ -204,8 +204,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
              resolve();
            };
            provider.on('sync', onSync);
-           // Fallback timeout in case server has no existing state
-           setTimeout(resolve, 800);
+           setTimeout(resolve, 800); // Safety fallback timeout
          });
        }
 
@@ -217,9 +216,6 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
            }
          } catch (err: any) {
            console.error("Failed to load initial content", err);
-           if (err?.status === 404) {
-             useWorkspaceStore.getState().closeTab(activeFile.id);
-           }
          }
        }
        hasLoadedContent.current.add(activeFile.id);
