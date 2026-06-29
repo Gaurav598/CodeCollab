@@ -9,8 +9,9 @@ import org.springframework.data.mongodb.MongoTransactionManager;
  * Enables @Transactional support on MongoDB.
  *
  * Spring Data MongoDB requires a MongoTransactionManager to be declared
- * for @Transactional to have actual ACID semantics. The MongoDB deployment
- * must be a replica set (configured via --replSet in docker-compose.yml).
+ * for @Transactional to have actual ACID semantics. MongoDB Atlas provides
+ * a replica set natively, so transactions are supported without any additional
+ * configuration on the deployment side.
  *
  * Without this bean, @Transactional is silently a no-op on MongoDB.
  */

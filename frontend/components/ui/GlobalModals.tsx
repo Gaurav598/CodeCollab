@@ -65,16 +65,16 @@ export function GlobalModals() {
       role="presentation"
     >
       <div
-        className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
         aria-describedby={message ? "modal-desc" : undefined}
       >
         <div className="p-6">
-          <h2 id="modal-title" className="text-xl font-semibold text-zinc-100 mb-2">{title}</h2>
+          <h2 id="modal-title" className="text-xl font-semibold text-foreground mb-2">{title}</h2>
           {message && (
-            <p id="modal-desc" className="text-sm text-zinc-400 mb-4">{message}</p>
+            <p id="modal-desc" className="text-sm text-muted-foreground mb-4">{message}</p>
           )}
 
           {type === "prompt" && (
@@ -84,20 +84,20 @@ export function GlobalModals() {
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-md text-zinc-100 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 autoComplete="off"
               />
             </form>
           )}
         </div>
         
-        <div className="px-6 py-4 bg-zinc-950/50 flex justify-end gap-3 border-t border-zinc-800">
+        <div className="px-6 py-4 bg-muted/30 flex justify-end gap-3 border-t border-border">
           {type !== "alert" && (
             <button
               ref={cancelRef}
               type="button"
               onClick={handleCancel}
-              className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors"
+              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               Cancel
             </button>

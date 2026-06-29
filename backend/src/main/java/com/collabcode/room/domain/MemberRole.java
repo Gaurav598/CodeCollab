@@ -3,7 +3,8 @@ package com.collabcode.room.domain;
 public enum MemberRole {
     owner,
     editor,
-    viewer;
+    viewer,
+    pending;
 
     public boolean canEdit() {
         return this == owner || this == editor;

@@ -46,12 +46,12 @@ export function ExecutionPanel({ fileId, language, getCode, disabled }: Executio
   }, [handleRun]);
 
   return (
-    <div className="border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-[#252526] flex flex-col min-h-[200px] h-64">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
-        <div className="text-sm font-semibold text-neutral-500">Execution Panel</div>
+    <div className="border-t border-border bg-muted/30 flex flex-col min-h-[200px] h-64">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Execution Panel</div>
         <div className="flex items-center gap-3">
           {result && (
-            <span className="text-xs font-medium text-neutral-500 bg-neutral-200 dark:bg-neutral-800 px-2 py-1 rounded">
+            <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded border border-border">
               Exit {result.exitCode} · {result.executionTimeMs}ms
             </span>
           )}
@@ -71,14 +71,14 @@ export function ExecutionPanel({ fileId, language, getCode, disabled }: Executio
         </div>
       </div>
 
-      <div className="flex flex-1 min-h-0 gap-2 p-2 bg-neutral-50 dark:bg-[#252526]">
+      <div className="flex flex-1 min-h-0 gap-2 p-2 bg-muted/10">
         {/* Input Section */}
-        <div className="flex-1 flex flex-col rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#1e1e1e] overflow-hidden">
-          <div className="px-3 py-1.5 text-xs font-semibold text-neutral-500 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-[#2a2a2b]">
+        <div className="flex-1 flex flex-col rounded-md border border-border bg-background overflow-hidden">
+          <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground border-b border-border bg-muted/50">
             Program Input
           </div>
           <textarea
-            className="flex-1 w-full p-3 font-mono text-sm bg-transparent resize-none focus:outline-none dark:text-neutral-300"
+            className="flex-1 w-full p-3 font-mono text-sm bg-transparent resize-none focus:outline-none text-foreground placeholder-muted-foreground/50"
             placeholder="Provide program input here..."
             value={stdin}
             onChange={(e) => setStdin(e.target.value)}
@@ -86,8 +86,8 @@ export function ExecutionPanel({ fileId, language, getCode, disabled }: Executio
         </div>
 
         {/* Output Section */}
-        <div className="flex-1 flex flex-col min-w-0 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-[#151515] overflow-hidden">
-          <div className="px-3 py-1.5 text-xs font-semibold text-neutral-500 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-200 dark:bg-[#1e1e1e]">
+        <div className="flex-1 flex flex-col min-w-0 rounded-md border border-border bg-background overflow-hidden">
+          <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground border-b border-border bg-muted/50">
             Program Output
           </div>
           <div className="flex-1 overflow-auto p-3 font-mono text-sm">
@@ -98,10 +98,10 @@ export function ExecutionPanel({ fileId, language, getCode, disabled }: Executio
               <pre className="text-red-400 whitespace-pre-wrap mb-2">{result.stderr}</pre>
             )}
             {result?.stdout && (
-              <pre className="text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">{result.stdout}</pre>
+              <pre className="text-foreground whitespace-pre-wrap">{result.stdout}</pre>
             )}
             {!error && !result && !running && (
-              <p className="text-neutral-500 text-xs">Output will appear here after execution.</p>
+              <p className="text-muted-foreground text-xs">Output will appear here after execution.</p>
             )}
           </div>
         </div>

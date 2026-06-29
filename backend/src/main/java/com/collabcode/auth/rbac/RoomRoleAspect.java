@@ -26,7 +26,7 @@ import java.util.Optional;
 public class RoomRoleAspect {
 
     private static final Map<RoomRole, Integer> ROLE_RANK = Map.of(
-            RoomRole.viewer, 1,
+            RoomRole.viewer, 2, // Treated as editor
             RoomRole.editor, 2,
             RoomRole.owner,  3
     );

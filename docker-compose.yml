@@ -1,17 +1,4 @@
 services:
-  mongodb:
-    image: mongo:8
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "try { rs.status() } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}) }"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:8
     ports:
@@ -28,44 +15,19 @@ services:
     build:
       context: ./backend
     environment:
-      MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/collabcode?replicaSet=rs0}
+      MONGODB_URI: ${MONGODB_URI}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-replace-with-a-strong-secret}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-900}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:-replace-with-a-strong-service-secret}
-      SANDBOX_SERVICE_URL: http://sandbox-service:3001
+      EXECUTION_ENGINE_URL: ${EXECUTION_ENGINE_URL}
+      EXECUTION_ENGINE_API_KEY: ${EXECUTION_ENGINE_API_KEY:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dummy}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-dummy}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-dummy}
     ports:
       - "8080:8080"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      sandbox-service:
-        condition: service_started
-
-  sandbox-runner:
-    build:
-      context: ./sandbox-service/docker/runner
-    image: collabcode/sandbox-runner:latest
-    profiles:
-      - sandbox-build
-
-  sandbox-service:
-    build:
-      context: ./sandbox-service
-    environment:
-      PORT: 3001
-      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:-replace-with-a-strong-service-secret}
-      RUNNER_IMAGE: collabcode/sandbox-runner:latest
-    ports:
-      - "3001:3001"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       redis:
         condition: service_healthy
@@ -102,5 +64,4 @@ services:
         condition: service_started
 
 volumes:
-  mongodb-data:
   redis-data:

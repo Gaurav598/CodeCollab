@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record AiRequest(
         UUID fileId,
-        UUID projectId,
+        UUID roomId,
         String language,
         String path,
         String code,

@@ -1,12 +1,60 @@
 # 19 — DevOps & Deployment
 
-## Requirements
-- **Docker** — every service (Spring Boot backend, Node.js sync microservice, Next.js frontend) containerized individually.
-- **Docker Compose** — for local development and single-host deployment, orchestrating Spring Boot, the sync microservice, Next.js, PostgreSQL, and Redis together.
-- **GitHub Actions** — CI/CD pipeline: run tests (see `20_TESTING_STRATEGY.md`) on every PR, build images on merge to main, optionally auto-deploy.
-- **Kubernetes-ready** — services should be structured (stateless where possible, externalized config, health-check endpoints) so that moving from Docker Compose to Kubernetes manifests later doesn't require re-architecting the services themselves.
-- **AWS** (or equivalent cloud provider) as the target deployment environment for anything beyond local/demo use.
+## Docker Compose Services
 
-## Notes carried over from the old project's deployment setup
-- The old project used a self-ping hack to prevent a free-tier host from cold-starting. This workaround should not be needed in the new setup if deployed on infrastructure without aggressive cold-start behavior — but if a similar free-tier constraint applies, document the actual chosen workaround here rather than silently reintroducing an undocumented hack.
-- No Dockerfile or CI/CD existed previously — both are required from the start in this rebuild, not deferred.
+The following services are managed by Docker Compose:
+
+| Service | Image | Purpose |
+|---|---|---|
+| `redis` | `redis:8` | Cache, Pub/Sub, presence, rate limiting |
+| `sync-service` | `./sync-service` | Yjs CRDT document sync (Node.js) |
+| `backend` | `./backend` | Spring Boot REST + WebSocket API |
+| `frontend` | `./frontend` | Next.js app |
+
+**External dependencies (not in Docker Compose):**
+- **MongoDB Atlas** — managed cloud database (connected via `MONGODB_URI`)
+- **AWS Execution Engine** — remote code execution service (connected via `EXECUTION_ENGINE_URL`)
+
+## Starting the Stack
+
+```bash
+# 1. Copy and fill environment variables
+cp .env.example .env
+# Edit .env: set MONGODB_URI and EXECUTION_ENGINE_URL
+
+# 2. Start all services
+docker-compose up -d
+
+# 3. Or start individual services for local dev
+docker-compose up -d redis
+cd backend && mvn spring-boot:run
+cd sync-service && npm run dev
+cd frontend && npm run dev
+```
+
+## Required Environment Variables
+
+See `.env.example` for the full list. Minimum required to start:
+
+| Variable | Description |
+|---|---|
+| `MONGODB_URI` | MongoDB Atlas connection string |
+| `REDIS_URL` | Redis connection URL |
+| `JWT_SECRET` | JWT signing secret (min 32 chars) |
+| `SERVICE_JWT_SECRET` | Internal service-to-service JWT secret |
+| `EXECUTION_ENGINE_URL` | AWS Execution Engine base URL |
+
+## CI/CD
+
+- **GitHub Actions** — CI pipeline runs tests on every PR, builds images on merge to main.
+- **Build targets:** Spring Boot JAR (Maven), Node.js services (npm), Next.js (next build).
+
+## Kubernetes Readiness
+
+All services are stateless where possible, with externalized config (env vars only, no hardcoded values), and health-check endpoints (`/actuator/health` for backend, `/health` for sync-service).
+
+## Notes
+
+- No local MongoDB container is required. MongoDB Atlas handles persistence.
+- No local sandbox container is required. The AWS Execution Engine handles code execution.
+- Docker is not mounted into any container (no `/var/run/docker.sock` bind mount).

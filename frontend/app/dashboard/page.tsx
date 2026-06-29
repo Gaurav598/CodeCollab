@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const { signOut } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [joinCode, setJoinCode] = useState("");
 
@@ -33,12 +34,16 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleCreateRoom(visibility: "public" | "private") {
+  async function handleCreateRoom() {
     try {
-      const room = await createRoom(visibility);
+      setCreating(true);
+      setError("");
+      const room = await createRoom();
       router.push(`/room/${room.roomCode}`);
     } catch (err: any) {
       setError(err.message || "Failed to create room");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -99,7 +104,7 @@ export default function DashboardPage() {
                   <div>
                     <div className="font-medium text-lg font-mono">{room.roomCode}</div>
                     <div className="text-sm text-muted-foreground capitalize">
-                      {room.visibility} • Role: {room.role}
+                      Role: {room.role}
                     </div>
                   </div>
                   <div className="text-sm text-primary">Enter &rarr;</div>
@@ -111,21 +116,17 @@ export default function DashboardPage() {
 
         <div className="space-y-8">
           <div className="p-6 border rounded bg-card">
-            <h2 className="text-xl font-semibold mb-4">Create a New Room</h2>
-            <div className="flex gap-4">
-              <button
-                onClick={() => handleCreateRoom("public")}
-                className="bg-primary text-primary-foreground px-4 py-2 rounded font-medium hover:bg-primary/90 flex-1"
-              >
-                Create Public Room
-              </button>
-              <button
-                onClick={() => handleCreateRoom("private")}
-                className="bg-secondary text-secondary-foreground px-4 py-2 rounded font-medium hover:bg-secondary/80 flex-1"
-              >
-                Create Private Room
-              </button>
-            </div>
+            <h2 className="text-xl font-semibold mb-2">Create a New Room</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              A unique room code will be generated automatically.
+            </p>
+            <button
+              onClick={handleCreateRoom}
+              disabled={creating}
+              className="w-full bg-primary text-primary-foreground px-4 py-2 rounded font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {creating ? "Creating..." : "Create Room"}
+            </button>
           </div>
 
           <div className="p-6 border rounded bg-card">

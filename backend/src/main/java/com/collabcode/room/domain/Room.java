@@ -21,7 +21,7 @@ public class Room {
     @Field("owner_id")
     private UUID ownerId;
 
-    private RoomVisibility visibility = RoomVisibility.private_room;
+    private String name;
 
     @Field("created_at")
     private Instant createdAt = Instant.now();
@@ -32,24 +32,22 @@ public class Room {
 
     protected Room() {}
 
-    public static Room create(UUID ownerId, String roomCode, RoomVisibility visibility) {
+    public static Room create(UUID ownerId, String roomCode, String name) {
         Room r = new Room();
         r.ownerId = ownerId;
         r.roomCode = roomCode;
-        r.visibility = visibility;
+        r.name = name;
         return r;
     }
 
     public UUID getId() { return id; }
     public String getRoomCode() { return roomCode; }
     public UUID getOwnerId() { return ownerId; }
-    public RoomVisibility getVisibility() { return visibility; }
+    public String getName() { return name; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getLastActiveAt() { return lastActiveAt; }
 
     public void updateLastActive() {
         this.lastActiveAt = Instant.now();
     }
-
-    public boolean isPublic() { return visibility == RoomVisibility.public_room; }
 }

@@ -7,9 +7,7 @@ import com.collabcode.common.exception.ApiException;
 import com.collabcode.config.AiProperties;
 import com.collabcode.room.domain.FileEntry;
 import com.collabcode.room.domain.MemberRole;
-import com.collabcode.room.domain.Project;
 import com.collabcode.room.repository.FileRepository;
-import com.collabcode.room.repository.ProjectRepository;
 import com.collabcode.room.repository.RoomMemberRepository;
 import org.springframework.stereotype.Service;
 
@@ -24,42 +22,33 @@ import java.util.UUID;
 public class AiContextService {
 
     private final FileRepository fileRepository;
-    private final ProjectRepository projectRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final AiPromptSanitizer sanitizer;
     private final AiProperties properties;
 
     public AiContextService(FileRepository fileRepository,
-                            ProjectRepository projectRepository,
                             RoomMemberRepository roomMemberRepository,
                             AiPromptSanitizer sanitizer,
                             AiProperties properties) {
         this.fileRepository = fileRepository;
-        this.projectRepository = projectRepository;
         this.roomMemberRepository = roomMemberRepository;
         this.sanitizer = sanitizer;
         this.properties = properties;
     }
 
-    
     public ContextEnvelope load(AiRequest request, UUID userId, AiFeature feature) {
         FileEntry activeFile = null;
-        Project project = null;
+        UUID roomId = null;
         if (request.fileId() != null) {
             activeFile = fileRepository.findById(request.fileId())
                     .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "File not found"));
-            project = projectRepository.findById(activeFile.getProjectId())
-                    .orElseThrow(() -> ApiException.notFound("PROJECT_NOT_FOUND", "Project not found"));
-        } else if (request.projectId() != null) {
-            project = projectRepository.findById(request.projectId())
-                    .orElseThrow(() -> ApiException.notFound("PROJECT_NOT_FOUND", "Project not found"));
+            roomId = activeFile.getRoomId();
+        } else if (request.roomId() != null) {
+            roomId = request.roomId();
         }
 
-        if (project == null && activeFile != null) {
-            project = projectRepository.findById(activeFile.getProjectId()).orElse(null);
-        }
-        if (project != null) {
-            requireAccess(project.getRoomId(), userId, feature);
+        if (roomId != null) {
+            requireAccess(roomId, userId, feature);
         }
 
         Map<UUID, AiContextFile> files = new LinkedHashMap<>();
@@ -72,16 +61,13 @@ public class AiContextService {
                 if (files.size() >= properties.getMaxContextFiles()) break;
                 FileEntry file = fileRepository.findById(fileId)
                         .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "Context file not found"));
-                Project p = projectRepository.findById(file.getProjectId()).orElse(null);
-                if (p != null) {
-                    requireAccess(p.getRoomId(), userId, AiFeature.CHAT);
-                }
+                requireAccess(file.getRoomId(), userId, AiFeature.CHAT);
                 files.putIfAbsent(file.getId(), toContextFile(file, null));
             }
         }
 
-        if (project != null && files.size() < properties.getMaxContextFiles()) {
-            for (FileEntry file : fileRepository.findAllByProjectId(project.getId())) {
+        if (roomId != null && files.size() < properties.getMaxContextFiles()) {
+            for (FileEntry file : fileRepository.findAllByRoomId(roomId)) {
                 if (files.size() >= properties.getMaxContextFiles()) break;
                 files.putIfAbsent(file.getId(), toContextFile(file, null));
             }

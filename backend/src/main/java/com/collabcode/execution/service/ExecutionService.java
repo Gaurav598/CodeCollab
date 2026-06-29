@@ -1,14 +1,12 @@
 package com.collabcode.execution.service;
 
 import com.collabcode.common.exception.ApiException;
-import com.collabcode.config.SandboxProperties;
+import com.collabcode.config.ExecutionEngineProperties;
 import com.collabcode.execution.dto.RunCodeRequest;
 import com.collabcode.execution.dto.RunCodeResponse;
 import com.collabcode.execution.dto.SandboxExecuteResult;
 import com.collabcode.room.domain.FileEntry;
 import com.collabcode.room.repository.FileRepository;
-import com.collabcode.room.domain.Project;
-import com.collabcode.room.repository.ProjectRepository;
 import com.collabcode.room.service.RoomAccessService;
 import org.springframework.stereotype.Service;
 
@@ -24,24 +22,21 @@ public class ExecutionService {
     );
 
     private final FileRepository fileRepository;
-    private final ProjectRepository projectRepository;
     private final RoomAccessService roomAccessService;
-    private final SandboxClient sandboxClient;
+    private final ExecutionEngineClient executionEngineClient;
     private final ExecutionRateLimiter rateLimiter;
-    private final SandboxProperties sandboxProperties;
+    private final ExecutionEngineProperties executionEngineProperties;
 
     public ExecutionService(FileRepository fileRepository,
-                            ProjectRepository projectRepository,
                             RoomAccessService roomAccessService,
-                            SandboxClient sandboxClient,
+                            ExecutionEngineClient executionEngineClient,
                             ExecutionRateLimiter rateLimiter,
-                            SandboxProperties sandboxProperties) {
+                            ExecutionEngineProperties executionEngineProperties) {
         this.fileRepository = fileRepository;
-        this.projectRepository = projectRepository;
         this.roomAccessService = roomAccessService;
-        this.sandboxClient = sandboxClient;
+        this.executionEngineClient = executionEngineClient;
         this.rateLimiter = rateLimiter;
-        this.sandboxProperties = sandboxProperties;
+        this.executionEngineProperties = executionEngineProperties;
     }
 
     
@@ -56,16 +51,13 @@ public class ExecutionService {
         FileEntry file = fileRepository.findById(request.fileId())
                 .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "File not found"));
 
-        Project project = projectRepository.findById(file.getProjectId())
-                .orElseThrow(() -> ApiException.notFound("PROJECT_NOT_FOUND", "Project not found"));
+        roomAccessService.requireEditor(file.getRoomId(), userId);
 
-        roomAccessService.requireEditor(project.getRoomId(), userId);
-
-        SandboxExecuteResult result = sandboxClient.execute(
+        SandboxExecuteResult result = executionEngineClient.execute(
                 request.language().toLowerCase(),
                 request.code(),
                 request.stdin(),
-                sandboxProperties.getDefaultTimeoutMs()
+                executionEngineProperties.getDefaultTimeoutMs()
         );
 
         return toResponse(result);

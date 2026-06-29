@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RoomMember, getRoomMembers, deleteRoom } from "@/services/workspaceService";
+import { RoomMember, getRoomMembers, deleteRoom, approveMember, patchMember, removeMember } from "@/services/workspaceService";
 import { X, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useModalStore } from "@/store/modalStore";
@@ -23,6 +23,36 @@ export function RoomSettings({ roomCode, userRole, onClose }: { roomCode: string
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleApprove(targetUserId: string, role: "editor" | "viewer") {
+    try {
+      await approveMember(roomCode, targetUserId, role);
+      await fetchMembers();
+    } catch (err: any) {
+      useModalStore.getState().showAlert("Error", err.message || "Failed to approve member");
+    }
+  }
+
+  async function handleUpdateRole(targetUserId: string, role: string) {
+    try {
+      await patchMember(roomCode, targetUserId, role);
+      await fetchMembers();
+    } catch (err: any) {
+      useModalStore.getState().showAlert("Error", err.message || "Failed to update role");
+    }
+  }
+
+  async function handleRemove(targetUserId: string) {
+    const confirmed = await useModalStore.getState().showConfirm("Remove Member", "Are you sure you want to remove this member?");
+    if (confirmed) {
+      try {
+        await removeMember(roomCode, targetUserId);
+        await fetchMembers();
+      } catch (err: any) {
+        useModalStore.getState().showAlert("Error", err.message || "Failed to remove member");
+      }
     }
   }
 
@@ -61,8 +91,50 @@ export function RoomSettings({ roomCode, userRole, onClose }: { roomCode: string
                     <div className="font-medium">{m.username}</div>
                     <div className="text-xs text-muted-foreground">ID: {m.userId}</div>
                   </div>
-                  <div className="text-xs font-semibold px-2 py-1 bg-primary/10 text-primary rounded capitalize">
-                    {m.role}
+                  <div className="flex items-center gap-2">
+                    {userRole === "owner" && m.role === "pending" ? (
+                      <>
+                        <button 
+                          onClick={() => handleApprove(m.userId, "editor")}
+                          className="text-xs font-semibold px-2 py-1 bg-primary text-primary-foreground rounded hover:opacity-90 transition"
+                        >
+                          Approve Editor
+                        </button>
+                        <button 
+                          onClick={() => handleApprove(m.userId, "viewer")}
+                          className="text-xs font-semibold px-2 py-1 bg-blue-500/10 text-blue-500 rounded hover:bg-blue-500/20 transition"
+                        >
+                          Approve Viewer
+                        </button>
+                        <button 
+                          onClick={() => handleRemove(m.userId)}
+                          className="text-xs font-semibold px-2 py-1 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20 transition"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    ) : userRole === "owner" && m.role !== "owner" ? (
+                      <div className="flex items-center gap-2">
+                        <select 
+                          value={m.role}
+                          onChange={(e) => handleUpdateRole(m.userId, e.target.value)}
+                          className="text-xs font-semibold px-2 py-1 bg-primary/10 text-primary rounded capitalize outline-none"
+                        >
+                          <option value="editor">Editor</option>
+                          <option value="viewer">Viewer</option>
+                        </select>
+                        <button 
+                          onClick={() => handleRemove(m.userId)}
+                          className="text-muted-foreground hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-xs font-semibold px-2 py-1 bg-primary/10 text-primary rounded capitalize">
+                        {m.role}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

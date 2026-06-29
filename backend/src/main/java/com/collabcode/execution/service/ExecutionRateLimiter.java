@@ -1,7 +1,7 @@
 package com.collabcode.execution.service;
 
 import com.collabcode.common.exception.ApiException;
-import com.collabcode.config.SandboxProperties;
+import com.collabcode.config.ExecutionEngineProperties;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -14,9 +14,9 @@ public class ExecutionRateLimiter {
     private static final String KEY_PREFIX = "execution:rate:";
 
     private final StringRedisTemplate redis;
-    private final SandboxProperties properties;
+    private final ExecutionEngineProperties properties;
 
-    public ExecutionRateLimiter(StringRedisTemplate redis, SandboxProperties properties) {
+    public ExecutionRateLimiter(StringRedisTemplate redis, ExecutionEngineProperties properties) {
         this.redis = redis;
         this.properties = properties;
     }

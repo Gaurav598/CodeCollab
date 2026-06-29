@@ -6,11 +6,14 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.scheduling.annotation.EnableScheduling;
 import com.collabcode.config.AiProperties;
 import com.collabcode.config.SecurityProperties;
-import com.collabcode.config.SandboxProperties;
+import com.collabcode.config.ExecutionEngineProperties;
+
+import org.springframework.data.web.config.EnableSpringDataWebSupport;
 
 @SpringBootApplication
 @EnableScheduling
-@EnableConfigurationProperties({SecurityProperties.class, SandboxProperties.class, AiProperties.class})
+@EnableConfigurationProperties({SecurityProperties.class, ExecutionEngineProperties.class, AiProperties.class})
+@EnableSpringDataWebSupport(pageSerializationMode = EnableSpringDataWebSupport.PageSerializationMode.VIA_DTO)
 public class CollabCodeApplication {
     public static void main(String[] args) {
         SpringApplication.run(CollabCodeApplication.class, args);

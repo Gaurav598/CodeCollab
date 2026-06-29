@@ -28,27 +28,27 @@ function VideoTile({
     }, [stream]);
 
     return (
-        <div className="relative rounded-xl overflow-hidden bg-zinc-900 aspect-video w-full shadow-lg">
+        <div className="relative rounded-xl overflow-hidden bg-muted border border-border aspect-video w-full shadow-md">
             {stream && !isVideoOff ? (
                 <video
                     ref={videoRef}
                     autoPlay
                     playsInline
                     muted={muted}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover bg-background"
                 />
             ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-zinc-800">
+                <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
                     <div className="flex flex-col items-center gap-2">
-                        <div className="w-16 h-16 rounded-full bg-zinc-700 flex items-center justify-center">
-                            <VideoOff className="text-zinc-400 w-7 h-7" />
+                        <div className="w-12 h-12 rounded-full bg-background flex items-center justify-center shadow-sm border border-border">
+                            <VideoOff className="text-muted-foreground w-5 h-5" />
                         </div>
-                        <span className="text-xs text-zinc-400">Camera off</span>
+                        <span className="text-xs text-muted-foreground font-medium">Camera off</span>
                     </div>
                 </div>
             )}
             <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-                <span className="bg-black/70 backdrop-blur-sm px-2 py-0.5 rounded-md text-xs text-white font-medium">
+                <span className="bg-background/90 border border-border backdrop-blur-sm px-2 py-0.5 rounded-md text-xs text-foreground font-medium shadow-sm">
                     {label}
                 </span>
             </div>
@@ -135,8 +135,8 @@ export function WebRTCManager({ roomId }: WebRTCManagerProps) {
         });
 
         return () => {
-            if (subSignal) subSignal.unsubscribe();
-            if (subPresence) subPresence.unsubscribe();
+            stompService.unsubscribe(`/user/queue/webrtc.signal`);
+            stompService.unsubscribe(`/topic/room.${roomId}.presence`);
 
             const { peerConnections, removePeerConnection, removeRemoteStream, localStream } = useWebRTCStore.getState();
             Object.keys(peerConnections).forEach(userId => {
@@ -183,11 +183,11 @@ export function WebRTCManager({ roomId }: WebRTCManagerProps) {
                 <button
                     onClick={toggleAudio}
                     title={isAudioMuted ? 'Unmute microphone' : 'Mute microphone'}
-                    className={`p-3 rounded-full transition-all shadow-md ${
+                    className={`p-3 rounded-full transition-all shadow-md border ${
                         isAudioMuted
-                            ? 'bg-red-500 hover:bg-red-600 ring-2 ring-red-400/50'
-                            : 'bg-zinc-700 hover:bg-zinc-600'
-                    } text-white`}
+                            ? 'bg-red-500 hover:bg-red-600 border-red-600 text-white'
+                            : 'bg-muted hover:bg-muted/80 text-foreground border-border'
+                    }`}
                 >
                     {isAudioMuted ? <MicOff size={18} /> : <Mic size={18} />}
                 </button>
@@ -196,11 +196,11 @@ export function WebRTCManager({ roomId }: WebRTCManagerProps) {
                 <button
                     onClick={toggleVideo}
                     title={isVideoMuted ? 'Turn on camera' : 'Turn off camera'}
-                    className={`p-3 rounded-full transition-all shadow-md ${
+                    className={`p-3 rounded-full transition-all shadow-md border ${
                         isVideoMuted
-                            ? 'bg-red-500 hover:bg-red-600 ring-2 ring-red-400/50'
-                            : 'bg-zinc-700 hover:bg-zinc-600'
-                    } text-white`}
+                            ? 'bg-red-500 hover:bg-red-600 border-red-600 text-white'
+                            : 'bg-muted hover:bg-muted/80 text-foreground border-border'
+                    }`}
                 >
                     {isVideoMuted ? <VideoOff size={18} /> : <Video size={18} />}
                 </button>
@@ -209,11 +209,11 @@ export function WebRTCManager({ roomId }: WebRTCManagerProps) {
                 <button
                     onClick={isScreenSharing ? stopScreenShare : startScreenShare}
                     title={isScreenSharing ? 'Stop sharing screen' : 'Share your screen'}
-                    className={`p-3 rounded-full transition-all shadow-md ${
+                    className={`p-3 rounded-full transition-all shadow-md border ${
                         isScreenSharing
-                            ? 'bg-blue-500 hover:bg-blue-600 ring-2 ring-blue-400/50'
-                            : 'bg-zinc-700 hover:bg-zinc-600'
-                    } text-white`}
+                            ? 'bg-blue-500 hover:bg-blue-600 border-blue-600 text-white'
+                            : 'bg-muted hover:bg-muted/80 text-foreground border-border'
+                    }`}
                 >
                     <MonitorUp size={18} />
                 </button>
@@ -221,7 +221,7 @@ export function WebRTCManager({ roomId }: WebRTCManagerProps) {
                 {/* Leave call */}
                 <button
                     title="Leave call"
-                    className="p-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition-all shadow-md"
+                    className="p-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition-all shadow-md border border-red-700"
                     onClick={() => {
                         const { peerConnections, removePeerConnection, removeRemoteStream } = useWebRTCStore.getState();
                         Object.keys(peerConnections).forEach(uid => {
@@ -238,7 +238,7 @@ export function WebRTCManager({ roomId }: WebRTCManagerProps) {
                 </button>
             </div>
 
-            <p className="text-center text-xs text-zinc-500 pb-1">
+            <p className="text-center text-xs text-muted-foreground pb-1 font-medium">
                 You control only your own microphone, camera, and screen.
             </p>
         </div>

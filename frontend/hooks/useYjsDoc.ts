@@ -42,8 +42,11 @@ export function useYjsDoc(roomId: string, activeFileId: string | null, openFileI
     for (const [fileId, connection] of currentConnections.entries()) {
       if (!openFileIds.includes(fileId)) {
         connection.provider.disconnect();
-        connection.provider.destroy();
-        connection.doc.destroy();
+        // Delay destruction to allow MonacoBinding to cleanly unobserve first
+        setTimeout(() => {
+          connection.provider.destroy();
+          connection.doc.destroy();
+        }, 50);
         currentConnections.delete(fileId);
       }
     }
@@ -56,8 +59,10 @@ export function useYjsDoc(roomId: string, activeFileId: string | null, openFileI
     return () => {
       for (const [fileId, connection] of currentConnections.entries()) {
         connection.provider.disconnect();
-        connection.provider.destroy();
-        connection.doc.destroy();
+        setTimeout(() => {
+          connection.provider.destroy();
+          connection.doc.destroy();
+        }, 50);
       }
       currentConnections.clear();
     };

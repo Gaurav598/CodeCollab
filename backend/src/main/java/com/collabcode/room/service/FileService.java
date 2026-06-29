@@ -3,6 +3,7 @@ package com.collabcode.room.service;
 import com.collabcode.common.exception.ApiException;
 import com.collabcode.room.domain.*;
 import com.collabcode.room.repository.*;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 
@@ -13,28 +14,27 @@ import java.util.*;
 public class FileService {
 
     private final FileRepository fileRepository;
-    private final ProjectRepository projectRepository;
     private final RoomAccessService roomAccessService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public FileService(FileRepository fileRepository,
-                       ProjectRepository projectRepository,
-                       RoomAccessService roomAccessService) {
+                       RoomAccessService roomAccessService,
+                       SimpMessagingTemplate messagingTemplate) {
         this.fileRepository = fileRepository;
-        this.projectRepository = projectRepository;
         this.roomAccessService = roomAccessService;
+        this.messagingTemplate = messagingTemplate;
     }
 
     
     @Transactional
-    public Map<String, Object> createFile(UUID projectId, String path, String language, UUID userId) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> ApiException.notFound("PROJECT_NOT_FOUND", "Project not found"));
-        roomAccessService.requireEditor(project.getRoomId(), userId);
+    public Map<String, Object> createFile(UUID roomId, String path, String language, UUID userId) {
+        roomAccessService.requireEditor(roomId, userId);
         String normalizedPath = normalizePath(path);
-        if (fileRepository.existsByProjectIdAndPath(projectId, normalizedPath)) {
-            throw ApiException.conflict("FILE_ALREADY_EXISTS", "A file with this path already exists in the project");
+        if (fileRepository.existsByRoomIdAndPath(roomId, normalizedPath)) {
+            throw ApiException.conflict("FILE_ALREADY_EXISTS", "A file with this path already exists in the room");
         }
-        FileEntry file = fileRepository.save(FileEntry.create(projectId, normalizedPath, normalizeLanguage(language)));
+        FileEntry file = fileRepository.save(FileEntry.create(roomId, normalizedPath, normalizeLanguage(language)));
+        broadcastWorkspaceChange(roomId);
         return fileDto(file);
     }
 
@@ -42,7 +42,7 @@ public class FileService {
     @Transactional(readOnly = true)
     public Map<String, Object> getFile(UUID fileId, UUID userId) {
         FileEntry file = findFile(fileId);
-        roomAccessService.requireMember(getRoomIdForFile(file), userId);
+        roomAccessService.requireMember(file.getRoomId(), userId);
         return fileWithContent(file);
     }
 
@@ -50,24 +50,42 @@ public class FileService {
     @Transactional
     public Map<String, Object> patchFile(UUID fileId, String newPath, String newLanguage, String content, UUID userId) {
         FileEntry file = findFile(fileId);
-        roomAccessService.requireEditor(getRoomIdForFile(file), userId);
+        UUID roomId = file.getRoomId();
+        roomAccessService.requireEditor(roomId, userId);
+
+        boolean metadataChanged = false;
+
         if (newPath != null && !newPath.isBlank()) {
             String normalizedPath = normalizePath(newPath);
             if (!normalizedPath.equals(file.getPath())
-                    && fileRepository.existsByProjectIdAndPathAndIdNot(file.getProjectId(), normalizedPath, file.getId())) {
-                throw ApiException.conflict("FILE_ALREADY_EXISTS", "A file with this path already exists in the project");
+                    && fileRepository.existsByRoomIdAndPathAndIdNot(file.getRoomId(), normalizedPath, file.getId())) {
+                throw ApiException.conflict("FILE_ALREADY_EXISTS", "A file with this path already exists in the room");
             }
-            file.setPath(normalizedPath);
+            if (!normalizedPath.equals(file.getPath())) {
+                file.setPath(normalizedPath);
+                metadataChanged = true;
+            }
         }
-        if (newLanguage != null && !newLanguage.isBlank()) file.setLanguage(normalizeLanguage(newLanguage));
+        if (newLanguage != null && !newLanguage.isBlank()) {
+            String normalized = normalizeLanguage(newLanguage);
+            if (!normalized.equals(file.getLanguage())) {
+                file.setLanguage(normalized);
+                metadataChanged = true;
+            }
+        }
         
-        // Handle frontend debounced saves without using internal routes
-        // This is safe because requireEditor check runs above
+        // Handle frontend debounced saves — content-only patches do NOT broadcast
         if (content != null) {
             file.setContent(content);
         }
         
         fileRepository.save(file);
+
+        // Broadcast only on path/language change, not on every content autosave
+        if (metadataChanged) {
+            broadcastWorkspaceChange(roomId);
+        }
+
         return fileDto(file);
     }
 
@@ -75,8 +93,10 @@ public class FileService {
     @Transactional
     public void deleteFile(UUID fileId, UUID userId) {
         FileEntry file = findFile(fileId);
-        roomAccessService.requireEditor(getRoomIdForFile(file), userId);
+        UUID roomId = file.getRoomId();
+        roomAccessService.requireEditor(roomId, userId);
         fileRepository.delete(file);
+        broadcastWorkspaceChange(roomId);
     }
 
     
@@ -89,15 +109,17 @@ public class FileService {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    /** Notify all room members that the file list has changed. */
+    private void broadcastWorkspaceChange(UUID roomId) {
+        messagingTemplate.convertAndSend(
+            "/topic/room." + roomId + ".workspace",
+            Map.of("event", "file.changed", "roomId", roomId.toString())
+        );
+    }
+
     private FileEntry findFile(UUID fileId) {
         return fileRepository.findById(fileId)
                 .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "File not found"));
-    }
-
-    private UUID getRoomIdForFile(FileEntry file) {
-        return projectRepository.findById(file.getProjectId())
-                .map(Project::getRoomId)
-                .orElseThrow(() -> ApiException.notFound("PROJECT_NOT_FOUND", "Project not found"));
     }
 
     private String normalizePath(String path) {
@@ -115,7 +137,7 @@ public class FileService {
     public static Map<String, Object> fileDto(FileEntry f) {
         return Map.of(
                 "id", f.getId().toString(),
-                "projectId", f.getProjectId().toString(),
+                "roomId", f.getRoomId().toString(),
                 "path", f.getPath(),
                 "language", f.getLanguage(),
                 "createdAt", f.getCreatedAt().toString()
@@ -125,10 +147,10 @@ public class FileService {
     public static Map<String, Object> fileWithContent(FileEntry f) {
         return Map.of(
                 "id", f.getId().toString(),
-                "projectId", f.getProjectId().toString(),
+                "roomId", f.getRoomId().toString(),
                 "path", f.getPath(),
                 "language", f.getLanguage(),
-                "content", f.getContent(),
+                "content", f.getContent() != null ? f.getContent() : "",
                 "createdAt", f.getCreatedAt().toString()
         );
     }

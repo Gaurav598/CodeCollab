@@ -7,5 +7,6 @@ package com.collabcode.auth.rbac;
 public enum RoomRole {
     owner,
     editor,
-    viewer
+    viewer,
+    pending
 }

@@ -22,3 +22,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Scratch and test scripts
+test-*.js
+test_*.js
+trace.js
+trace.spec.js
+debugger.ts
+
+# Test reports
+playwright-report/
+test-results/

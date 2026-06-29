@@ -23,13 +23,14 @@ public class RoomController {
         this.roomService = roomService;
     }
 
-    /** POST /rooms */
+    /** POST /rooms — body is optional, room code is the identifier */
     @PostMapping
     public ResponseEntity<Map<String, Object>> createRoom(
-            @Valid @RequestBody CreateRoomRequest request,
+            @RequestBody(required = false) CreateRoomRequest request,
             @AuthenticationPrincipal UserDetails principal) {
+        String name = (request != null && request.name() != null) ? request.name() : "";
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(roomService.createRoom(userId(principal), request.visibility()));
+                .body(roomService.createRoom(userId(principal), name));
     }
 
     /** GET /rooms */
@@ -99,6 +100,24 @@ public class RoomController {
             @AuthenticationPrincipal UserDetails principal) {
         roomService.deleteRoom(roomCode, userId(principal));
         return ResponseEntity.ok(Map.of("message", "Room deleted"));
+    }
+
+    /** GET /rooms/:roomCode/files */
+    @GetMapping("/{roomCode}/files")
+    public ResponseEntity<java.util.List<Map<String, Object>>> getRoomFiles(
+            @PathVariable String roomCode,
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(roomService.getRoomFiles(roomCode, userId(principal)));
+    }
+
+    /** PATCH /rooms/:roomCode/members/:targetUserId/approve */
+    @PatchMapping("/{roomCode}/members/{targetUserId}/approve")
+    public ResponseEntity<Map<String, Object>> approveMember(
+            @PathVariable String roomCode,
+            @PathVariable UUID targetUserId,
+            @Valid @RequestBody PatchMemberRequest request,
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(roomService.approveMember(roomCode, targetUserId, request.role(), userId(principal)));
     }
 
     private UUID userId(UserDetails principal) {

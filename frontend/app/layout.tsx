@@ -20,6 +20,28 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              const originalAddEventListener = window.addEventListener;
+              window.addEventListener = function(type, listener, options) {
+                if (type === 'unhandledrejection') {
+                  const wrappedListener = function(event) {
+                    if (event.reason && typeof event.reason === 'object' && !(event.reason instanceof Error)) {
+                      event.preventDefault(); // Tell browser it is handled to suppress red console logs
+                      return; // Swallow Monaco worker plain object rejections silently
+                    }
+                    return typeof listener === 'function' ? listener.call(this, event) : listener.handleEvent(event);
+                  };
+                  return originalAddEventListener.call(this, type, wrappedListener, options);
+                }
+                return originalAddEventListener.call(this, type, listener, options);
+              };
+            `
+          }}
+        />
+      </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider>
           <SessionBootstrap />

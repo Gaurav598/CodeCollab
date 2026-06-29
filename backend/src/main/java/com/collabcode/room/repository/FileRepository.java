@@ -10,9 +10,9 @@ import java.util.UUID;
 
 @Repository
 public interface FileRepository extends MongoRepository<FileEntry, UUID> {
-    List<FileEntry> findAllByProjectId(UUID projectId);
-    List<FileEntry> findAllByProjectIdIn(Collection<UUID> projectIds);
-    boolean existsByProjectIdAndPath(UUID projectId, String path);
-    boolean existsByProjectIdAndPathAndIdNot(UUID projectId, String path, UUID id);
-    void deleteAllByProjectId(UUID projectId);
+    List<FileEntry> findAllByRoomId(UUID roomId);
+    List<FileEntry> findAllByRoomIdIn(Collection<UUID> roomIds);
+    boolean existsByRoomIdAndPath(UUID roomId, String path);
+    boolean existsByRoomIdAndPathAndIdNot(UUID roomId, String path, UUID id);
+    void deleteAllByRoomId(UUID roomId);
 }

@@ -1,13 +1,11 @@
 package com.collabcode.execution.service;
 
 import com.collabcode.common.exception.ApiException;
-import com.collabcode.config.SandboxProperties;
+import com.collabcode.config.ExecutionEngineProperties;
 import com.collabcode.execution.dto.RunCodeRequest;
 import com.collabcode.execution.dto.SandboxExecuteResult;
 import com.collabcode.room.domain.FileEntry;
-import com.collabcode.room.domain.Project;
 import com.collabcode.room.repository.FileRepository;
-import com.collabcode.room.repository.ProjectRepository;
 import com.collabcode.room.service.RoomAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,18 +24,17 @@ import static org.mockito.Mockito.*;
 class ExecutionServiceTest {
 
     @Mock private FileRepository fileRepository;
-    @Mock private ProjectRepository projectRepository;
     @Mock private RoomAccessService roomAccessService;
-    @Mock private SandboxClient sandboxClient;
+    @Mock private ExecutionEngineClient executionEngineClient;
     @Mock private ExecutionRateLimiter rateLimiter;
 
     private ExecutionService executionService;
-    private final SandboxProperties properties = new SandboxProperties();
+    private final ExecutionEngineProperties properties = new ExecutionEngineProperties();
 
     @BeforeEach
     void setUp() {
         executionService = new ExecutionService(
-                fileRepository, projectRepository, roomAccessService, sandboxClient, rateLimiter, properties
+                fileRepository, roomAccessService, executionEngineClient, rateLimiter, properties
         );
     }
 
@@ -56,9 +53,7 @@ class ExecutionServiceTest {
         UUID userId = UUID.randomUUID();
         UUID fileId = UUID.randomUUID();
         FileEntry file = mockFile(fileId);
-        Project project = mockProject(FIXED_PROJECT_ID); // build before when()
         when(fileRepository.findById(fileId)).thenReturn(Optional.of(file));
-        when(projectRepository.findById(FIXED_PROJECT_ID)).thenReturn(Optional.of(project));
         doThrow(ApiException.forbidden("FORBIDDEN", "Editor or Owner role required"))
                 .when(roomAccessService).requireEditor(FIXED_ROOM_ID, userId);
 
@@ -70,14 +65,12 @@ class ExecutionServiceTest {
     }
 
     @Test
-    void runCode_delegatesToSandboxForEditor() {
+    void runCode_delegatesToEngineForEditor() {
         UUID userId = UUID.randomUUID();
         UUID fileId = UUID.randomUUID();
         FileEntry file = mockFile(fileId);
-        Project project = mockProject(FIXED_PROJECT_ID); // build before when()
         when(fileRepository.findById(fileId)).thenReturn(Optional.of(file));
-        when(projectRepository.findById(FIXED_PROJECT_ID)).thenReturn(Optional.of(project));
-        when(sandboxClient.execute(eq("python"), anyString(), eq(""), anyInt()))
+        when(executionEngineClient.execute(eq("python"), anyString(), eq(""), anyInt()))
                 .thenReturn(new SandboxExecuteResult("ok\n", "", 0, 42, false, null));
 
         RunCodeRequest request = new RunCodeRequest(fileId, "print('ok')", "python", "");
@@ -89,18 +82,11 @@ class ExecutionServiceTest {
         verify(roomAccessService).requireEditor(FIXED_ROOM_ID, userId);
     }
 
-    private static final UUID FIXED_PROJECT_ID = UUID.randomUUID();
     private static final UUID FIXED_ROOM_ID = UUID.randomUUID();
 
     private FileEntry mockFile(UUID fileId) {
         FileEntry file = mock(FileEntry.class);
-        when(file.getProjectId()).thenReturn(FIXED_PROJECT_ID);
+        when(file.getRoomId()).thenReturn(FIXED_ROOM_ID);
         return file;
-    }
-
-    private Project mockProject(UUID ignoredProjectId) {
-        Project project = mock(Project.class);
-        when(project.getRoomId()).thenReturn(FIXED_ROOM_ID);
-        return project;
     }
 }

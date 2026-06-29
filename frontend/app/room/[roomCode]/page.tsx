@@ -14,10 +14,33 @@ const CollabEditor = dynamic(
 import { CommandPalette } from "@/components/workspace/CommandPalette";
 import { NotificationBell } from "@/components/communication/NotificationBell";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { getRoom, Project, Room } from "@/services/workspaceService";
+import { getRoom, joinRoom, FileEntry, Room } from "@/services/workspaceService";
 import { useAuthStore } from "@/store/authStore";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { useChatStore } from "@/store/chatStore";
+import { stompService } from "@/services/stompClient";
+
+function PendingScreen({ roomId, userId }: { roomId: string; userId: string }) {
+  useEffect(() => {
+    const dest = `/topic/room.${roomId}.approval`;
+    const sub = stompService.subscribe(dest, (msg) => {
+      try {
+        const body = JSON.parse(msg.body);
+        if (body.event === "user.approved" && body.userId === userId) {
+          window.location.reload();
+        }
+      } catch (e) {}
+    });
+    return () => stompService.unsubscribe(dest);
+  }, [roomId, userId]);
+
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-background text-muted-foreground flex-col gap-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <p>Waiting for room owner approval...</p>
+    </div>
+  );
+}
 
 export default function RoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -25,7 +48,7 @@ export default function RoomPage() {
   const { user, isLoading } = useAuthStore();
   const closeAllTabs = useWorkspaceStore(state => state.closeAllTabs);
   const [room, setRoom] = useState<Room | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -61,10 +84,23 @@ export default function RoomPage() {
 
   async function fetchRoom() {
     try {
-      const data = await getRoom(roomCode);
-      setRoom(data);
-    } catch (err: any) {
-      setError(err.message || "Failed to load room");
+      let joinedRoomId: string | null = null;
+      try {
+        const joinRes = await joinRoom(roomCode) as any;
+        if (joinRes?.roomId) joinedRoomId = joinRes.roomId;
+      } catch (joinErr: any) {
+        console.warn("Auto-join failed or already a member:", joinErr);
+      }
+      try {
+        const data = await getRoom(roomCode);
+        setRoom(data);
+      } catch (err: any) {
+        if (err.message === "Waiting for room owner approval" && joinedRoomId) {
+          setRoom({ id: joinedRoomId, roomCode, ownerId: "", name: "Pending Room", createdAt: "", role: "pending" });
+        } else {
+          setError(err.message || "Failed to load room");
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -88,13 +124,17 @@ export default function RoomPage() {
     );
   }
 
-  // userRole from API response; fall back to viewer for non-members
+  // userRole from API response; fall back to editor for non-members
   const isOwner = user?.id === room.ownerId;
-  const userRole = isOwner ? "owner" : (room.role ?? "viewer");
+  const userRole = isOwner ? "owner" : (room.role ?? "editor");
+
+  if (userRole === "pending") {
+    return <PendingScreen roomId={room.id} userId={user!.id} />;
+  }
 
   return (
     <div className="flex w-full h-full">
-      <Sidebar roomCode={room.roomCode} userRole={userRole} onProjectsLoaded={setProjects} />
+      <Sidebar roomCode={room.roomCode} roomId={room.id} userRole={userRole} onFilesLoaded={setFiles} />
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex h-11 items-center justify-between border-b border-border bg-background/95 px-3">
           <Tabs />
@@ -111,10 +151,10 @@ export default function RoomPage() {
             <ThemeToggle />
           </div>
         </div>
-        <CollabEditor roomId={room.id} />
+        <CollabEditor roomId={room.id} userRole={userRole} />
       </div>
       <CommandPalette
-        projects={projects}
+        files={files}
         roomCode={room.roomCode}
         onRunCode={() => window.dispatchEvent(new Event("collabcode:run-active-file"))}
         onFocusAi={() => undefined}

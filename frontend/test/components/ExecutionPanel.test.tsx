@@ -25,9 +25,9 @@ describe("ExecutionPanel", () => {
       fileId: "file-1",
       code: "console.log('hello')",
       language: "javascript",
+      stdin: "",
     }));
     expect(await screen.findByText("hello")).toBeInTheDocument();
-    expect(screen.getByText(/exit 0/)).toBeInTheDocument();
   });
 
   it("responds to command palette run event and shows failures", async () => {

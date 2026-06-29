@@ -2,20 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { FileCode, FolderOpen, Play, Search, Settings, Sparkles, TerminalSquare, X } from "lucide-react";
-import { Project } from "@/services/workspaceService";
+import { FileEntry } from "@/services/workspaceService";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 
 interface CommandPaletteProps {
-  projects: Project[];
+  files: FileEntry[];
   roomCode: string;
   onRunCode: () => void;
   onFocusAi: () => void;
 }
 
-export function CommandPalette({ projects, roomCode, onRunCode, onFocusAi }: CommandPaletteProps) {
+export function CommandPalette({ files, roomCode, onRunCode, onFocusAi }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const { openTab, setActiveProject } = useWorkspaceStore();
+  const { openTab } = useWorkspaceStore();
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -32,35 +32,25 @@ export function CommandPalette({ projects, roomCode, onRunCode, onFocusAi }: Com
   }, []);
 
   const items = useMemo(() => {
-    const fileItems = projects.flatMap((project) =>
-      project.files
-        .filter((file) => !file.path.endsWith(".gitkeep"))
-        .map((file) => ({
-          id: `file-${file.id}`,
-          label: file.path,
-          detail: project.name,
-          icon: <FileCode size={16} />,
-          run: () => {
-            setActiveProject(project.id);
-            openTab({ id: file.id, projectId: project.id, path: file.path, language: file.language });
-          },
-        }))
-    );
-    const projectItems = projects.map((project) => ({
-      id: `project-${project.id}`,
-      label: project.name,
-      detail: `Project in ${roomCode}`,
-      icon: <FolderOpen size={16} />,
-      run: () => setActiveProject(project.id),
-    }));
+    const fileItems = files
+      .filter((file) => !file.path.endsWith(".gitkeep"))
+      .map((file) => ({
+        id: `file-${file.id}`,
+        label: file.path,
+        detail: `File in ${roomCode}`,
+        icon: <FileCode size={16} />,
+        run: () => {
+          openTab({ id: file.id, path: file.path, language: file.language });
+        },
+      }));
     const commandItems = [
       { id: "run", label: "Run active file", detail: "Execution panel", icon: <Play size={16} />, run: onRunCode },
       { id: "ai", label: "Focus AI assistant", detail: "AI actions and chat", icon: <Sparkles size={16} />, run: onFocusAi },
       { id: "terminal", label: "Show execution output", detail: "Workspace panel", icon: <TerminalSquare size={16} />, run: onRunCode },
       { id: "settings", label: "Room settings", detail: "Members and permissions", icon: <Settings size={16} />, run: () => undefined },
     ];
-    return [...commandItems, ...projectItems, ...fileItems];
-  }, [projects, roomCode, onRunCode, onFocusAi, openTab, setActiveProject]);
+    return [...commandItems, ...fileItems];
+  }, [files, roomCode, onRunCode, onFocusAi, openTab]);
 
   const filtered = items
     .filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(query.toLowerCase()))

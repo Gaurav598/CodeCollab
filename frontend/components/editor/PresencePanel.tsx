@@ -1,13 +1,13 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { UserAwareness } from '../../hooks/useAwareness';
-import { Users, ChevronDown, Save, Loader2 } from 'lucide-react';
+import { Users, ChevronDown, Save, Loader2, Code2 } from 'lucide-react';
 import { TabData } from '@/store/workspaceStore';
 
 interface PresencePanelProps {
   users: UserAwareness[];
   activeFile?: TabData;
   onLanguageChange?: (language: string) => void;
-  onSave?: () => void;
+  onSave?: (showSavedCodes: boolean) => void;
   isSaving?: boolean;
 }
 
@@ -76,14 +76,24 @@ export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isS
       <div className="flex-1" />
       
       {activeFile && (
-        <button
-          onClick={() => onSave?.()}
-          disabled={isSaving}
-          className="flex items-center space-x-1.5 text-[13px] font-medium text-neutral-700 dark:text-neutral-300 transition-colors px-3 py-1.5 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 shadow-sm mr-4 disabled:opacity-50"
-        >
-          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          <span>Save Code</span>
-        </button>
+        <div className="flex items-center space-x-2 mr-4">
+          <button
+            onClick={() => onSave?.(true)}
+            className="flex items-center space-x-1.5 text-[13px] font-medium text-neutral-700 dark:text-neutral-300 transition-colors px-3 py-1.5 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 shadow-sm disabled:opacity-50"
+          >
+            <Code2 size={14} />
+            <span>Saved Codes</span>
+          </button>
+
+          <button
+            onClick={() => onSave?.(false)}
+            disabled={isSaving}
+            className="flex items-center space-x-1.5 text-[13px] font-medium text-white transition-colors px-3 py-1.5 rounded-md border border-blue-600 bg-blue-600 hover:bg-blue-700 shadow-sm disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            <span>Save Code</span>
+          </button>
+        </div>
       )}
 
       <div className="flex -space-x-2 overflow-hidden">

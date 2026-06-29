@@ -16,7 +16,7 @@ export interface AiMessage {
 
 export interface AiRequest {
   fileId?: string;
-  projectId?: string;
+  roomId?: string;
   language?: string;
   path?: string;
   code?: string;

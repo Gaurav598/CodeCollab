@@ -4,18 +4,10 @@ const apiBase = "http://localhost:8080/api/v1";
 
 type FileEntry = {
   id: string;
-  projectId: string;
+  roomId: string;
   path: string;
   language: string;
   createdAt: string;
-};
-
-type Project = {
-  id: string;
-  roomId: string;
-  name: string;
-  createdAt: string;
-  files: FileEntry[];
 };
 
 async function mockBackend(page: Page) {
@@ -28,7 +20,7 @@ async function mockBackend(page: Page) {
     role: "owner",
     createdAt: "2026-06-24T00:00:00Z",
   };
-  const projects: Project[] = [];
+  const files: FileEntry[] = [];
 
   await page.route(`${apiBase}/auth/me`, async (route) => {
     await route.fulfill({ status: 200, json: { user, accessToken: "access-token" } });
@@ -54,31 +46,19 @@ async function mockBackend(page: Page) {
     await route.fulfill({ status: 200, json: room });
   });
 
-  await page.route(`${apiBase}/projects?roomCode=ROOM42`, async (route) => {
-    await route.fulfill({ status: 200, json: projects });
-  });
-
-  await page.route(`${apiBase}/projects`, async (route) => {
-    const project = {
-      id: "project-1",
-      roomId: "room-1",
-      name: "Core",
-      createdAt: "2026-06-24T00:00:00Z",
-      files: [],
-    };
-    projects.splice(0, projects.length, project);
-    await route.fulfill({ status: 200, json: project });
+  await page.route(`${apiBase}/rooms/ROOM42/files`, async (route) => {
+    await route.fulfill({ status: 200, json: files });
   });
 
   await page.route(`${apiBase}/files`, async (route) => {
     const file = {
       id: "file-1",
-      projectId: "project-1",
+      roomId: "room-1",
       path: "app.ts",
       language: "typescript",
       createdAt: "2026-06-24T00:00:00Z",
     };
-    projects[0].files = [file];
+    files.push(file);
     await route.fulfill({ status: 200, json: file });
   });
 
@@ -143,14 +123,9 @@ test.beforeEach(async ({ page }) => {
 
 async function createAndOpenWorkspaceFile(page: Page) {
   page.once("dialog", async (dialog) => {
-    await dialog.accept("Core");
-  });
-  await page.locator("button").filter({ has: page.locator("svg") }).nth(1).click();
-
-  page.once("dialog", async (dialog) => {
     await dialog.accept("app.ts");
   });
-  await page.getByText("Workspace is empty.").click({ button: "right" });
+  await page.getByText("No Files Created").click({ button: "right" });
   await page.getByText("New File", { exact: true }).click();
   await page.getByText("app.ts").click();
 }
@@ -170,26 +145,20 @@ test("registers and logs in with mocked backend auth", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "CollabCode" })).toBeVisible();
 });
 
-test("creates room, project, and file from workspace UI", async ({ page }) => {
+test("creates room and file from workspace UI", async ({ page }) => {
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
   await page.getByRole("button", { name: /create public room/i }).click();
   await expect(page).toHaveURL(/\/room\/ROOM42/);
-  await expect(page.getByText("Room: ROOM42")).toBeVisible();
-
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("Project Name");
-    await dialog.accept("Core");
-  });
-  await page.locator("button").filter({ has: page.locator("svg") }).nth(1).click();
-  await expect(page.getByRole("combobox")).toHaveValue("project-1");
+  await expect(page.getByText("ROOM: ROOM42")).toBeVisible();
 
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toContain("File name");
     await dialog.accept("app.ts");
   });
-  await page.getByText("Workspace is empty.").click({ button: "right" });
+  
+  await page.getByText("No Files Created").click({ button: "right" });
   await page.getByText("New File", { exact: true }).click();
   await expect(page.getByText("app.ts")).toBeVisible();
 });

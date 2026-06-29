@@ -5,13 +5,12 @@ const initialState = {
   openTabs: [],
   activeTabId: null,
   expandedFolders: [],
-  activeProjectId: null,
 };
 
 describe("workspaceStore", () => {
   it("opens, activates, and closes tabs without duplicating them", () => {
     useWorkspaceStore.setState(initialState);
-    const tab = { id: "file-1", projectId: "project-1", path: "src/app.ts", language: "typescript" };
+    const tab = { id: "file-1", path: "src/app.ts", language: "typescript" };
 
     useWorkspaceStore.getState().openTab(tab);
     useWorkspaceStore.getState().openTab(tab);
@@ -24,14 +23,12 @@ describe("workspaceStore", () => {
     expect(useWorkspaceStore.getState().activeTabId).toBeNull();
   });
 
-  it("tracks folder expansion and active project state", () => {
+  it("tracks folder expansion", () => {
     useWorkspaceStore.setState(initialState);
 
     useWorkspaceStore.getState().toggleFolder("src/components");
-    useWorkspaceStore.getState().setActiveProject("project-2");
 
     expect(useWorkspaceStore.getState().expandedFolders).toContain("src/components");
-    expect(useWorkspaceStore.getState().activeProjectId).toBe("project-2");
 
     useWorkspaceStore.getState().toggleFolder("src/components");
     expect(useWorkspaceStore.getState().expandedFolders).not.toContain("src/components");

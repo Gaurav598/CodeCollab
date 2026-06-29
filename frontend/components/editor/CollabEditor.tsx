@@ -16,12 +16,14 @@ import { useThemeStore } from '@/store/themeStore';
 import { useModalStore } from '@/store/modalStore';
 import { useWebRTCStore } from '@/store/webrtcStore';
 import { WorkspaceRightPanel } from '@/components/workspace/WorkspaceRightPanel';
+import { SavedCodesModal } from '../workspace/SavedCodesModal';
 
 interface CollabEditorProps {
   roomId: string;
+  userRole?: string;
 }
 
-export function CollabEditor({ roomId }: CollabEditorProps) {
+export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps) {
   const monacoApi = useMonaco();
   const activeFileId = useWorkspaceStore(state => state.activeTabId);
   const openFiles = useWorkspaceStore(state => state.openTabs);
@@ -49,6 +51,7 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
   const hasLoadedContent = useRef<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [currentModelUri, setCurrentModelUri] = useState("");
 
   useEffect(() => {
     providerRef.current = provider;
@@ -59,17 +62,14 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
     try {
       await renameFile(activeFile.id, activeFile.path, language);
       updateTabLanguage(activeFile.id, language);
-    } catch (err) {
-      console.error('Failed to update language', err);
+    } catch (error) {
+      console.error('Failed to change language:', error);
     }
   }, [activeFile, updateTabLanguage]);
 
   const getCode = useCallback(() => {
-    if (doc) {
-      return doc.getText('monaco').toString();
-    }
-    return editorRef.current?.getValue() ?? '';
-  }, [doc]);
+    return editorRef.current?.getModel()?.getValue() || '';
+  }, []);
 
   const getSelection = useCallback(() => {
     const editor = editorRef.current;
@@ -99,6 +99,11 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
     editorDisposablesRef.current = [];
     editorRef.current = editor;
 
+    setCurrentModelUri(editor.getModel()?.uri.toString() || "");
+    const modelDisposable = editor.onDidChangeModel(() => {
+      setCurrentModelUri(editor.getModel()?.uri.toString() || "");
+    });
+
     const cursorDisposable = editor.onDidChangeCursorPosition((e) => {
       if (providerRef.current) {
         providerRef.current.awareness.setLocalStateField('cursor', {
@@ -119,7 +124,7 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
       }
     });
 
-    editorDisposablesRef.current = [cursorDisposable, selectionDisposable];
+    editorDisposablesRef.current = [modelDisposable, cursorDisposable, selectionDisposable];
   };
 
   useEffect(() => {
@@ -132,45 +137,40 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
     };
   }, []);
 
-  // Auto-save logic
-  useEffect(() => {
-    if (!editorRef.current || !activeFile) return;
-
-    const editor = editorRef.current;
-    
-    const disposable = editor.onDidChangeModelContent(() => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      saveTimeoutRef.current = setTimeout(async () => {
-        try {
-          if (!hasLoadedContent.current.has(activeFile.id)) return;
-          const code = editor.getModel()?.getValue();
-          if (code !== undefined) {
-             await updateFileContent(activeFile.id, code);
-          }
-        } catch (err) {
-          console.error("Auto-save failed", err);
-        }
-      }, 1000); // 1 second debounce
-    });
-
-    return () => disposable.dispose();
-  }, [activeFile]);
-
   useEffect(() => {
     if (!editorRef.current || !doc || !provider || !activeFile) return;
+
+    // Wait until the editor has mounted the correct model for this file
+    const currentModel = editorRef.current.getModel();
+    if (!currentModel || (!currentModel.uri.path.endsWith(activeFile.id) && !currentModel.uri.path.endsWith(activeFile.path))) {
+        return;
+    }
 
     // The shared text type
     const type = doc.getText('monaco');
     
     // Create the binding
-    bindingRef.current = new MonacoBinding(
+    const binding = new MonacoBinding(
       type,
-      editorRef.current.getModel()!,
+      currentModel,
       new Set([editorRef.current]),
       provider.awareness
     );
+    
+    // Monkey-patch destroy to be idempotent and swallow errors from y-monaco's double-destroy bug
+    const originalDestroy = binding.destroy.bind(binding);
+    let isDestroyed = false;
+    binding.destroy = () => {
+      if (isDestroyed) return;
+      isDestroyed = true;
+      try {
+        originalDestroy();
+      } catch (e) {
+        // ignore yjs internal unobserve errors
+      }
+    };
+    
+    bindingRef.current = binding;
 
     // Initial load from DB if completely empty
     const initializeContent = async () => {
@@ -179,18 +179,22 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
        if (type.length === 0) {
          try {
            const fileEntry = await getFileContent(activeFile.id);
+           console.log("DEBUG_TRACE: 1. GET response content: ", fileEntry.content);
            if (fileEntry.content && type.length === 0) {
-             // Handle case where sync-service saved a base64 Yjs update (from the previous behavior)
              let initialText = fileEntry.content;
-             try {
-                // Quick heuristic: If it looks like a base64 string without spaces, don't just insert it blindly as text,
-                // actually we shouldn't insert base64 strings if the architecture moved to raw text.
-                // We'll insert it as raw text since backend patchFile accepts raw text now.
-             } catch(e) {}
+             console.log("DEBUG_TRACE: 2. Content passed into Yjs: ", initialText);
              type.insert(0, initialText);
+             console.log("DEBUG_TRACE: 3. Content inside Y.Text: ", type.toString());
+             console.log("DEBUG_TRACE: 4. Content inside Monaco immediately after: ", editorRef.current?.getModel()?.getValue());
+             setTimeout(() => {
+               console.log("DEBUG_TRACE: 5. Content inside Monaco one second later: ", editorRef.current?.getModel()?.getValue());
+             }, 1000);
            }
-         } catch (err) {
+         } catch (err: any) {
            console.error("Failed to load initial content", err);
+           if (err?.status === 404) {
+             useWorkspaceStore.getState().closeTab(activeFile.id);
+           }
          }
        }
        hasLoadedContent.current.add(activeFile.id);
@@ -200,11 +204,16 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
 
     return () => {
       if (bindingRef.current) {
-        bindingRef.current.destroy();
+        try {
+          bindingRef.current.destroy();
+        } catch (e) {
+          // Ignore yjs 'Tried to remove event handler that doesn't exist' error
+          // This happens in React strict mode or during rapid file switching
+        }
         bindingRef.current = null;
       }
     };
-  }, [doc, provider, activeFile]);
+  }, [doc, provider, activeFile, monacoApi, currentModelUri]);
 
   useEffect(() => {
     if (!monacoApi || !activeFile) return;
@@ -254,7 +263,7 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
         try {
           const response = await requestAutocomplete({
             fileId: activeFile.id,
-            projectId: activeFile.projectId,
+            roomId: roomId,
             language: activeFile.language,
             path: activeFile.path,
             code: model.getValue(),
@@ -305,7 +314,22 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
   const handleDownload = useCallback(() => {
     const code = getCode();
     if (!activeFile) return;
-    const filename = activeFile.path.split('/').pop() || 'code';
+    
+    let filename = activeFile.path.split('/').pop() || 'code';
+    
+    const extMap: Record<string, string> = {
+      cpp: '.cpp',
+      c: '.c',
+      java: '.java',
+      javascript: '.js',
+      python: '.py'
+    };
+    
+    const ext = activeFile.language ? extMap[activeFile.language] : '';
+    if (ext && !filename.toLowerCase().endsWith(ext)) {
+      filename += ext;
+    }
+
     const blob = new Blob([code], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -317,21 +341,47 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
     URL.revokeObjectURL(url);
   }, [getCode, activeFile]);
 
-  const handleExplicitSave = useCallback(async () => {
+  const [showSavedCodes, setShowSavedCodes] = useState(false);
+
+  const handleExplicitSave = useCallback(async (isViewSavedCodes: boolean = false) => {
+    if (isViewSavedCodes) {
+      setShowSavedCodes(true);
+      return;
+    }
+
     if (!activeFile) return;
     const code = getCode();
     try {
       setIsSaving(true);
+      // Also update the room's temporary collaborative state in MongoDB just in case
       await updateFileContent(activeFile.id, code);
-      setToastMessage("Code saved successfully");
+      // explicitly save to user's personal saved codes
+      const { saveExplicitCode } = await import('@/services/workspaceService');
+      await saveExplicitCode(roomId, activeFile.path, activeFile.language, code);
+      
+      setToastMessage("Code explicitly saved to cloud workspace");
       setTimeout(() => setToastMessage(""), 3000);
-    } catch (error) {
+    } catch (error: any) {
       setToastMessage("Failed to save code");
       setTimeout(() => setToastMessage(""), 3000);
     } finally {
       setIsSaving(false);
     }
-  }, [activeFile, getCode]);
+  }, [activeFile, getCode, roomId]);
+
+  const handleRestoreSavedCode = useCallback((savedCode: any) => {
+    // 1. Close modal
+    setShowSavedCodes(false);
+    
+    // 2. Overwrite current Yjs document with saved code
+    if (doc && provider) {
+      const type = doc.getText('monaco');
+      type.delete(0, type.length);
+      type.insert(0, savedCode.code);
+      setToastMessage("Code restored successfully!");
+      setTimeout(() => setToastMessage(""), 3000);
+    }
+  }, [doc, provider]);
 
   useEffect(() => {
     window.addEventListener("collabcode:download-active-file", handleDownload);
@@ -367,6 +417,12 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
       <div className="flex min-w-0 flex-1 flex-col">
         <PresencePanel users={users} activeFile={activeFile} onLanguageChange={handleLanguageChange} onSave={handleExplicitSave} isSaving={isSaving} />
         
+        <SavedCodesModal 
+          isOpen={showSavedCodes} 
+          onClose={() => setShowSavedCodes(false)} 
+          onRestore={handleRestoreSavedCode} 
+        />
+
         {/* Screen share split layout */}
         <div className={`flex min-h-0 flex-1 ${isScreenSplit ? 'flex-row' : 'flex-col'}`}>
           {/* Code Editor */}
@@ -390,7 +446,8 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
                   inlineSuggest: { enabled: true },
-                  padding: { top: 16, bottom: 16 }
+                  padding: { top: 16, bottom: 16 },
+                  readOnly: userRole === "viewer"
                 }}
               />
               <RemoteCursors editor={editorRef.current} users={users} />
@@ -408,27 +465,27 @@ export function CollabEditor({ roomId }: CollabEditorProps) {
 
           {/* Shared Screen Panel */}
           {isScreenSplit && (
-            <div className="relative flex w-1/2 flex-col bg-zinc-950 transition-all duration-300">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-zinc-900">
-                <span className="text-xs font-medium text-zinc-300">
+            <div className="relative flex w-1/2 flex-col bg-background transition-all duration-300">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted">
+                <span className="text-xs font-medium text-foreground">
                   {isLocalScreenSharing ? '🖥️ You are sharing your screen' : '🖥️ Screen Share'}
                 </span>
                 {isRemoteScreenSharing && (
-                  <span className="text-xs text-zinc-400">Participant is sharing</span>
+                  <span className="text-xs text-muted-foreground">Participant is sharing</span>
                 )}
               </div>
-              <div className="flex-1 flex items-center justify-center p-3">
+              <div className="flex-1 flex items-center justify-center p-3 bg-muted/20">
                 {remoteScreenStream ? (
                   <video
                     autoPlay
                     playsInline
                     ref={el => { if (el) el.srcObject = remoteScreenStream; }}
-                    className="max-w-full max-h-full rounded-lg shadow-xl object-contain"
+                    className="max-w-full max-h-full rounded-lg shadow-xl object-contain bg-background border border-border"
                   />
                 ) : (
-                  <div className="text-zinc-500 text-sm text-center">
-                    <p>Your screen is visible to others.</p>
-                    <p className="text-xs mt-1 text-zinc-600">Stop sharing to return to full editor.</p>
+                  <div className="text-muted-foreground text-sm text-center">
+                    <p className="font-semibold text-foreground">Your screen is visible to others.</p>
+                    <p className="text-xs mt-1">Stop sharing to return to full editor.</p>
                   </div>
                 )}
               </div>

@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:file:../.env[.properties]
   application:
     name: collabcode-backend
 
@@ -6,7 +8,7 @@ spring:
     redis:
       url: ${REDIS_URL:redis://localhost:6379}
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/collabcode}
+      uri: ${MONGODB_URI}
       auto-index-creation: true
 
   security:
@@ -51,11 +53,12 @@ collabcode:
     service-jwt-secret: ${SERVICE_JWT_SECRET:replace-with-a-strong-service-secret}
     refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:false}
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
-  sandbox:
-    service-url: ${SANDBOX_SERVICE_URL:http://localhost:3001}
-    default-timeout-ms: ${SANDBOX_DEFAULT_TIMEOUT_MS:5000}
-    max-timeout-ms: ${SANDBOX_MAX_TIMEOUT_MS:10000}
-    rate-limit-per-minute: ${SANDBOX_RATE_LIMIT_PER_MINUTE:30}
+  execution:
+    engine-url: ${EXECUTION_ENGINE_URL:}
+    api-key: ${EXECUTION_ENGINE_API_KEY:}
+    default-timeout-ms: ${EXECUTION_DEFAULT_TIMEOUT_MS:5000}
+    max-timeout-ms: ${EXECUTION_MAX_TIMEOUT_MS:10000}
+    rate-limit-per-minute: ${EXECUTION_RATE_LIMIT_PER_MINUTE:30}
   ai:
     default-provider: ${AI_DEFAULT_PROVIDER:local}
     fallback-order: ${AI_FALLBACK_ORDER:gemini,openai,claude,deepseek,local}

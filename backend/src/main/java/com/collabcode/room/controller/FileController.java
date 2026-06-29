@@ -30,7 +30,7 @@ public class FileController {
             @Valid @RequestBody CreateFileRequest request,
             @AuthenticationPrincipal UserDetails principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(fileService.createFile(request.projectId(), request.path(), request.languageOrDefault(), userId(principal)));
+                .body(fileService.createFile(request.roomId(), request.path(), request.languageOrDefault(), userId(principal)));
     }
 
     /** GET /files/:fileId */

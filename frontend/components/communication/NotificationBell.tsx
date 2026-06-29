@@ -15,7 +15,7 @@ export function NotificationBell() {
             <button 
                 onClick={() => setIsOpen(!isOpen)}
                 aria-label="Notifications"
-                className="relative p-2 text-zinc-400 hover:text-white transition-colors rounded-full hover:bg-zinc-800"
+                className="relative p-2 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-muted"
             >
                 <Bell size={20} />
                 {unreadCount > 0 && (
@@ -26,24 +26,24 @@ export function NotificationBell() {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl overflow-hidden z-50">
-                    <div className="p-3 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
-                        <h3 className="font-semibold text-zinc-100">Notifications</h3>
+                <div className="absolute right-0 mt-2 w-80 bg-card border border-border rounded-lg shadow-xl overflow-hidden z-50">
+                    <div className="p-3 border-b border-border flex justify-between items-center bg-muted/30">
+                        <h3 className="font-semibold text-foreground">Notifications</h3>
                     </div>
                     <div className="max-h-96 overflow-y-auto">
                         {notifications.length === 0 ? (
-                            <div className="p-4 text-center text-zinc-500 text-sm">
+                            <div className="p-4 text-center text-muted-foreground text-sm">
                                 No new notifications
                             </div>
                         ) : (
                             notifications.map(notif => (
                                 <div 
                                     key={notif.id} 
-                                    className={`p-3 border-b border-zinc-800/50 flex gap-3 hover:bg-zinc-800/50 transition-colors ${!notif.isRead ? 'bg-blue-900/10' : ''}`}
+                                    className={`p-3 border-b border-border/50 flex gap-3 hover:bg-muted/40 transition-colors ${!notif.isRead ? 'bg-primary/10' : ''}`}
                                 >
                                     <div className="flex-1">
-                                        <div className="text-sm font-medium text-zinc-200">{notif.title}</div>
-                                        <div className="text-xs text-zinc-400 mt-1">{notif.body}</div>
+                                        <div className="text-sm font-medium text-foreground">{notif.title}</div>
+                                        <div className="text-xs text-muted-foreground mt-1">{notif.body}</div>
                                     </div>
                                     {!notif.isRead && (
                                         <button 

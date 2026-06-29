@@ -9,14 +9,14 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Document(collection = "files")
-@CompoundIndex(name = "project_path_idx", def = "{'project_id': 1, 'path': 1}", unique = true)
+@CompoundIndex(name = "room_path_idx", def = "{'room_id': 1, 'path': 1}", unique = true)
 public class FileEntry {
 
     @Id
     private UUID id = UUID.randomUUID();
 
-    @Field("project_id")
-    private UUID projectId;
+    @Field("room_id")
+    private UUID roomId;
 
     private String path;
 
@@ -29,16 +29,16 @@ public class FileEntry {
 
     protected FileEntry() {}
 
-    public static FileEntry create(UUID projectId, String path, String language) {
+    public static FileEntry create(UUID roomId, String path, String language) {
         FileEntry f = new FileEntry();
-        f.projectId = projectId;
+        f.roomId = roomId;
         f.path = path;
         f.language = language;
         return f;
     }
 
     public UUID getId() { return id; }
-    public UUID getProjectId() { return projectId; }
+    public UUID getRoomId() { return roomId; }
     public String getPath() { return path; }
     public String getContent() { return content; }
     public String getLanguage() { return language; }

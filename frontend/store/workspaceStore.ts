@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 
 export interface TabData {
   id: string;        // File entry id
-  projectId: string; // Project id
   path: string;      // File path
   language: string;  // File language
 }
@@ -12,7 +11,6 @@ interface WorkspaceState {
   openTabs: TabData[];
   activeTabId: string | null;
   expandedFolders: string[]; // paths of folders that are expanded in the file tree
-  activeProjectId: string | null;
   activeRoomCode: string | null;
 
   // Actions
@@ -20,7 +18,6 @@ interface WorkspaceState {
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
   toggleFolder: (folderPath: string) => void;
-  setActiveProject: (projectId: string) => void;
   setActiveRoomCode: (roomCode: string) => void;
   updateTabPath: (tabId: string, path: string) => void;
   updateTabLanguage: (tabId: string, language: string) => void;
@@ -33,7 +30,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       openTabs: [],
       activeTabId: null,
       expandedFolders: [],
-      activeProjectId: null,
       activeRoomCode: null,
 
       openTab: (tab) => {
@@ -66,8 +62,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           set({ expandedFolders: [...expandedFolders, folderPath] });
         }
       },
-
-      setActiveProject: (projectId) => set({ activeProjectId: projectId }),
 
       setActiveRoomCode: (roomCode) => set({ activeRoomCode: roomCode }),
 

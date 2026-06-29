@@ -24,8 +24,9 @@ public class RoomAccessService implements RoomMembershipPort {
     }
 
     public void requireMember(UUID roomId, UUID userId) {
-        if (!roomMemberRepository.existsByRoomIdAndUserId(roomId, userId)) {
-            throw ApiException.forbidden("FORBIDDEN", "Not a member of this room");
+        MemberRole role = roleFor(roomId, userId);
+        if (role == MemberRole.pending) {
+            throw ApiException.forbidden("PENDING_APPROVAL", "Waiting for room owner approval");
         }
     }
 

@@ -20,10 +20,13 @@ export function useAwareness(provider: WebsocketProvider | null) {
 
     const updateAwareness = () => {
       const states = Array.from(provider.awareness.getStates().values());
-      const activeUsers = states
-        .filter((state: any) => state.user !== undefined)
-        .map((state: any) => state.user as UserAwareness);
-      setUsers(activeUsers);
+      const uniqueUsers = new Map<string, UserAwareness>();
+      states.forEach((state: any) => {
+        if (state.user) {
+          uniqueUsers.set(state.user.id, state.user as UserAwareness);
+        }
+      });
+      setUsers(Array.from(uniqueUsers.values()));
     };
 
     provider.awareness.on('change', updateAwareness);

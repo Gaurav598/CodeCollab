@@ -1,9 +1,10 @@
 import { Client, IMessage } from '@stomp/stompjs';
 import { getAccessToken } from '@/services/authService';
+import { serviceConfig } from './config';
 
 class StompService {
     private client: Client | null = null;
-    private subscriptions: Map<string, any> = new Map();
+    private activeSubscriptions: Map<string, { callback: (msg: IMessage) => void; subscription: any }> = new Map();
     private pendingSubscriptions: Array<{destination: string, callback: (msg: IMessage) => void}> = [];
     private pendingMessages: Array<{destination: string, body: any}> = [];
 
@@ -14,7 +15,7 @@ class StompService {
         if (!token) return;
 
         this.client = new Client({
-            brokerURL: `${process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'}/ws`,
+            brokerURL: serviceConfig.stompWebSocketUrl,
             connectHeaders: {
                 Authorization: `Bearer ${token}`
             },
@@ -24,13 +25,21 @@ class StompService {
             onConnect: () => {
                 console.log('[STOMP] Connected');
                 
-                // Re-subscribe to active channels if necessary
+                // Re-subscribe to user notifications
                 this.client?.subscribe('/user/queue/notifications', (msg) => {
                     import('@/store/notificationStore').then(({ useNotificationStore }) => {
                         const notif = JSON.parse(msg.body);
                         useNotificationStore.getState().addNotification(notif);
                     });
                 });
+
+                // Re-subscribe all active subscriptions on reconnect
+                const currentSubs = Array.from(this.activeSubscriptions.entries());
+                this.activeSubscriptions.clear();
+                for (const [destination, item] of currentSubs) {
+                    console.log(`[STOMP] Re-subscribing to ${destination}`);
+                    this.subscribe(destination, item.callback);
+                }
 
                 // Process pending subscriptions
                 while (this.pendingSubscriptions.length > 0) {
@@ -60,7 +69,7 @@ class StompService {
         if (this.client) {
             this.client.deactivate();
             this.client = null;
-            this.subscriptions.clear();
+            this.activeSubscriptions.clear();
             this.pendingSubscriptions = [];
             this.pendingMessages = [];
         }
@@ -69,27 +78,42 @@ class StompService {
     public subscribe(destination: string, callback: (message: IMessage) => void) {
         if (!this.client || !this.client.connected) {
             console.warn(`[STOMP] Cannot subscribe to ${destination} right now. Queuing subscription.`);
-            this.pendingSubscriptions.push({ destination, callback });
+            if (!this.pendingSubscriptions.some(s => s.destination === destination)) {
+                this.pendingSubscriptions.push({ destination, callback });
+            }
+            this.activeSubscriptions.set(destination, { callback, subscription: null });
             return null;
         }
 
-        if (this.subscriptions.has(destination)) {
-            return this.subscriptions.get(destination);
+        const existing = this.activeSubscriptions.get(destination);
+        if (existing && existing.subscription) {
+            return existing.subscription;
         }
 
-        const sub = this.client.subscribe(destination, callback);
-        this.subscriptions.set(destination, sub);
-        return sub;
+        try {
+            const sub = this.client.subscribe(destination, callback);
+            this.activeSubscriptions.set(destination, { callback, subscription: sub });
+            return sub;
+        } catch (err) {
+            console.error(`[STOMP] Failed to subscribe to ${destination}`, err);
+            return null;
+        }
     }
 
     public unsubscribe(destination: string) {
         // Also remove from pending if present
         this.pendingSubscriptions = this.pendingSubscriptions.filter(s => s.destination !== destination);
 
-        const sub = this.subscriptions.get(destination);
-        if (sub) {
-            sub.unsubscribe();
-            this.subscriptions.delete(destination);
+        const existing = this.activeSubscriptions.get(destination);
+        if (existing) {
+            if (existing.subscription) {
+                try {
+                    existing.subscription.unsubscribe();
+                } catch (err) {
+                    console.error(`[STOMP] Failed to unsubscribe from ${destination}`, err);
+                }
+            }
+            this.activeSubscriptions.delete(destination);
         }
     }
 
