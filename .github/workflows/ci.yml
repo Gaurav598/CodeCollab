@@ -29,8 +29,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-          cache: maven
-      - run: mvn test
+          cache: gradle
+      - run: ./gradlew test
         working-directory: backend
 
   sync-service:
