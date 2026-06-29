@@ -36,29 +36,37 @@ export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isS
   const currentLanguage = LANGUAGES.find(l => l.id === activeFile?.language) || LANGUAGES[0];
 
   return (
-    <div className="flex items-center space-x-2 px-4 h-12 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-      <Users className="w-4 h-4 text-neutral-500" />
-      <span className="text-sm text-neutral-500 font-medium">
-        {users.length} {users.length === 1 ? 'user' : 'users'} online
-      </span>
+    <div className="flex items-center space-x-3 px-5 h-10 bg-background border-b border-border shadow-sm">
+      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 rounded-full border border-primary/20">
+        <div className="relative flex items-center justify-center">
+          <Users className="w-3.5 h-3.5 text-primary" />
+          <div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
+        </div>
+        <span className="text-xs font-semibold text-primary tracking-wide">
+          {users.length} {users.length === 1 ? 'User' : 'Users'} Online
+        </span>
+      </div>
       
       {activeFile && (
-        <div className="relative ml-4" ref={dropdownRef}>
+        <div className="relative ml-2" ref={dropdownRef}>
           <button
             onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-            className="flex items-center space-x-1 text-[13px] text-neutral-700 dark:text-neutral-300 transition-colors px-2.5 py-1.5 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 shadow-sm"
+            className="group flex items-center gap-2 text-[13px] font-medium text-foreground transition-all duration-300 px-3 py-1.5 rounded-md border border-border bg-muted/30 hover:bg-muted/80 shadow-sm hover:shadow"
           >
-            <span>{currentLanguage.name}</span>
-            <ChevronDown size={14} />
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.5)]"></span>
+              <span>{currentLanguage.name}</span>
+            </div>
+            <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-300 ${showLanguageDropdown ? 'rotate-180' : ''}`} />
           </button>
           
           {showLanguageDropdown && (
-            <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg z-50 py-1">
+            <div className="absolute top-full left-0 mt-2 w-40 bg-background border border-border rounded-lg shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-200">
               {LANGUAGES.map(lang => (
                 <button
                   key={lang.id}
-                  className={`w-full text-left px-4 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 ${
-                    activeFile.language === lang.id ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-neutral-700 dark:text-neutral-300'
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-muted/80 ${
+                    activeFile.language === lang.id ? 'text-primary font-semibold bg-primary/5' : 'text-muted-foreground hover:text-foreground'
                   }`}
                   onClick={() => {
                     onLanguageChange?.(lang.id);
@@ -76,19 +84,19 @@ export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isS
       <div className="flex-1" />
       
       {activeFile && (
-        <div className="flex items-center space-x-2 mr-4">
+        <div className="flex items-center space-x-3 mr-4">
           <button
             onClick={() => onSave?.(true)}
-            className="flex items-center space-x-1.5 text-[13px] font-medium text-neutral-700 dark:text-neutral-300 transition-colors px-3 py-1.5 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 shadow-sm disabled:opacity-50"
+            className="group flex items-center space-x-1.5 text-[13px] font-medium text-foreground transition-all duration-300 px-3 py-1.5 rounded-md border border-border bg-muted/30 hover:bg-muted/80 shadow-sm hover:shadow"
           >
-            <Code2 size={14} />
+            <Code2 size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
             <span>Saved Codes</span>
           </button>
 
           <button
             onClick={() => onSave?.(false)}
             disabled={isSaving}
-            className="flex items-center space-x-1.5 text-[13px] font-medium text-white transition-colors px-3 py-1.5 rounded-md border border-blue-600 bg-blue-600 hover:bg-blue-700 shadow-sm disabled:opacity-50"
+            className="flex items-center space-x-1.5 text-[13px] font-medium text-white transition-all duration-300 px-4 py-1.5 rounded-md bg-gradient-to-r from-blue-600 to-primary hover:from-blue-700 hover:to-blue-600 shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:shadow-none disabled:transform-none"
           >
             {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             <span>Save Code</span>
