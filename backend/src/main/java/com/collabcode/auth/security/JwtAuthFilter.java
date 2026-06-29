@@ -31,7 +31,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
-        if (request.getRequestURI().startsWith(request.getContextPath() + "/internal/")) {
+        String path = request.getRequestURI();
+        if (path.contains("/internal/")) {
             chain.doFilter(request, response);
             return;
         }

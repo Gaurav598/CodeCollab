@@ -19,13 +19,18 @@ sub.on("message", (channel, message) => {
     const docName = channel.substring(10); // "awareness:".length
     const binding = awarenessMap.get(docName);
     
+    console.log(`[STAGE 6] REDIS SUBSCRIBER: Received message on channel ${channel}`);
+    
     if (binding) {
       try {
         const update = Buffer.from(message, 'base64');
         awarenessProtocol.applyAwarenessUpdate(binding.awareness, update, "redis");
+        console.log(`[STAGE 6] REDIS SUBSCRIBER: Applied awareness update for ${docName}`);
       } catch (err) {
         console.error(`[Awareness] Failed to apply update for ${docName}:`, err);
       }
+    } else {
+      console.log(`[STAGE 6] REDIS SUBSCRIBER: No binding found for ${docName}`);
     }
   }
 });
@@ -45,9 +50,14 @@ export function bindAwareness(docName: string, awareness: awarenessProtocol.Awar
     if (changedClients.length === 0) return;
 
     try {
+      console.log(`[STAGE 6] REDIS PUBLISHER: Encoding update for ${docName} (changedClients: ${changedClients.length})`);
       const update = awarenessProtocol.encodeAwarenessUpdate(awareness, changedClients);
       const base64Update = Buffer.from(update).toString('base64');
-      pub.publish(channel, base64Update).catch(console.error);
+      pub.publish(channel, base64Update).then(() => {
+        console.log(`[STAGE 6] REDIS PUBLISHER: Successfully published to ${channel}`);
+      }).catch(err => {
+        console.error(`[STAGE 6] REDIS PUBLISHER: Failed to publish to ${channel}`, err);
+      });
     } catch (err) {
       console.error(`[Awareness] Failed to encode update for ${docName}:`, err);
     }

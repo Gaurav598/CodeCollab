@@ -26,12 +26,38 @@ export function useYjsDoc(roomId: string, activeFileId: string | null, openFileI
         const wsUrl = syncConfig.getWsUrl();
         const roomPath = `sync?roomId=${encodeURIComponent(roomId)}&fileId=${encodeURIComponent(fileId)}&token=${encodeURIComponent(token)}`;
         const wsProvider = new WebsocketProvider(wsUrl, roomPath, ydoc);
+        
+        console.log(`\n================================`);
+        console.log(`[STAGE 1/4] PROVIDER CREATED`);
+        console.log(`[STAGE 1] Room: ${roomId}, File: ${fileId}, User: ${user.id}`);
+        console.log(`[STAGE 1] WebSocket URL: ${wsUrl}/${roomPath}`);
+        console.log(`================================\n`);
+
+        wsProvider.on('status', (event: any) => {
+          console.log(`[STAGE 4] PROVIDER STATUS for file ${fileId}: ${event.status}`);
+        });
+        
+        wsProvider.on('sync', (isSynced: boolean) => {
+          console.log(`[STAGE 4] PROVIDER SYNC for file ${fileId}: isSynced=${isSynced}`);
+        });
+
+        wsProvider.on('connection-error', (event: any) => {
+          console.log(`[STAGE 4] PROVIDER CONNECTION ERROR for file ${fileId}:`, event);
+        });
+
+        wsProvider.on('connection-close', (event: any) => {
+          console.log(`[STAGE 4] PROVIDER CONNECTION CLOSE for file ${fileId}:`, event);
+        });
 
         const userColor = getUserColor(user.id);
         wsProvider.awareness.setLocalStateField('user', {
           id: user.id,
           name: user.username,
           color: userColor
+        });
+        
+        wsProvider.awareness.on('update', ({ added, updated, removed }: any, origin: any) => {
+          console.log(`[STAGE 1] AWARENESS UPDATE for file ${fileId}. Added: ${added.length}, Updated: ${updated.length}, Removed: ${removed.length}. Origin: ${origin}`);
         });
 
         currentConnections.set(fileId, { doc: ydoc, provider: wsProvider });

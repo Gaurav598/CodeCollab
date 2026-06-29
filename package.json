@@ -16,5 +16,8 @@
   "workspaces": [
     "frontend",
     "sync-service"
-  ]
+  ],
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3"
+  }
 }

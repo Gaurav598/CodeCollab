@@ -5,24 +5,19 @@ import { WebSocketServer } from "ws";
 import { setupWSConnection, getYDoc, docs } from "y-websocket/bin/utils";
 import * as Y from "yjs";
 // @ts-ignore
-import { RedisPersistence } from "y-redis";
 import { config } from "./config.js";
 import { extractToken, parseJwt } from "./auth.js";
 import { checkMembership } from "./roomGuard.js";
 import { persistDocument } from "./persistence.js";
 import { bindAwareness, closeAwarenessRedis, unbindAwareness } from "./awareness.js";
+import { bindDocState, unbindDocState, closeDocRedis } from "./docSync.js";
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 const docConnectionCounts = new Map<string, number>();
 
-// Set up y-redis adapter for syncing documents and awareness
-const redisPersistence = new RedisPersistence({
-  redisOpts: config.REDIS_URL,
-});
-
-// Periodic auto-save removed: architecture moved to raw text and frontend handles auto-saves.
+// y-redis is removed, we use docSync to bridge CJS Y.Doc updates with Redis.
 
 app.use(express.json());
 
@@ -97,19 +92,28 @@ server.on("upgrade", async (request, socket, head) => {
 wss.on("connection", (ws: any, request: any, { fileId, roomId, userId }: any) => {
   try {
     const docName = `file:${fileId}`;
-    docConnectionCounts.set(docName, (docConnectionCounts.get(docName) ?? 0) + 1);
+    const newCount = (docConnectionCounts.get(docName) ?? 0) + 1;
+    docConnectionCounts.set(docName, newCount);
+    
+    console.log(`\n================================`);
+    console.log(`[STAGE 5] CONNECT`);
+    console.log(`[STAGE 5] AUTH SUCCESS: User ${userId}`);
+    console.log(`[STAGE 5] ROOM: ${roomId}, FILE: ${fileId}`);
+    console.log(`[STAGE 5] CLIENT COUNT (for ${docName}): ${newCount}`);
+    console.log(`================================\n`);
     
     // y-websocket sets up the connection logic internally.
     setupWSConnection(ws, request, { docName });
 
     // Bind the Yjs document to Redis for sync
     const doc = getYDoc(docName, true);
-    if (!redisPersistence.docs.has(docName)) {
-      redisPersistence.bindState(docName, doc);
-    }
+    bindDocState(docName, doc);
     
     doc.on('update', (update: Uint8Array, origin: any) => {
-      require('fs').appendFileSync('sync-service.log', `[SYNC-WS] Doc ${docName} updated from origin: ${origin}\n`);
+      console.log(`[STAGE 5] UPDATE RECEIVED for ${docName} from origin:`, origin === ws ? 'this websocket' : typeof origin);
+      // Let's also check if it broadcasts
+      const clientCount = Array.from(doc.conns.keys()).length;
+      console.log(`[STAGE 5] UPDATE BROADCAST for ${docName} to ${clientCount} clients in doc.conns.`);
     });
 
     // Bind awareness
@@ -117,16 +121,18 @@ wss.on("connection", (ws: any, request: any, { fileId, roomId, userId }: any) =>
     const docFromUtils = docs.get(docName);
     if (docFromUtils && docFromUtils.awareness) {
       docFromUtils.awareness.on('update', ({ added, updated, removed }: any, origin: any) => {
-        require('fs').appendFileSync('sync-service.log', `[SYNC-WS] Awareness ${docName} updated from origin: ${origin}, added: ${added}, updated: ${updated}, removed: ${removed}\n`);
+        console.log(`[STAGE 5] AWARENESS UPDATE for ${docName}. Added: ${added.length}, Updated: ${updated.length}, Removed: ${removed.length}. Origin: ${typeof origin}`);
       });
       bindAwareness(docName, docFromUtils.awareness);
     }
 
     ws.on("close", () => {
       const remaining = (docConnectionCounts.get(docName) ?? 1) - 1;
+      console.log(`\n[STAGE 5] CLIENT DISCONNECT from ${docName}. Remaining: ${remaining}\n`);
       if (remaining <= 0) {
         docConnectionCounts.delete(docName);
         unbindAwareness(docName);
+        unbindDocState(docName);
       } else {
         docConnectionCounts.set(docName, remaining);
       }
@@ -145,7 +151,7 @@ async function shutdown() {
   console.log("Shutting down sync-service...");
   wss.close();
   await closeAwarenessRedis();
-  await redisPersistence.destroy();
+  await closeDocRedis();
   server.close();
   process.exit(0);
 }

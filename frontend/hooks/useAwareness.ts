@@ -19,17 +19,30 @@ export function useAwareness(provider: WebsocketProvider | null) {
     }
 
     const updateAwareness = () => {
-      const states = Array.from(provider.awareness.getStates().values());
+      const states = Array.from(provider.awareness.getStates().entries());
+      console.log(`\n================================`);
+      console.log(`[PRESENCE] awareness.getStates() returned ${states.length} total entries.`);
+      
       const uniqueUsers = new Map<string, UserAwareness>();
-      states.forEach((state: any) => {
+      states.forEach(([clientId, state]: any) => {
+        console.log(`[PRESENCE] Client ID ${clientId} state:`, state);
         if (state.user) {
           uniqueUsers.set(state.user.id, state.user as UserAwareness);
         }
       });
+      
+      const uniqueCount = uniqueUsers.size;
+      console.log(`[PRESENCE] Unique User Count: ${uniqueCount}`);
+      console.log(`================================\n`);
+      
       setUsers(Array.from(uniqueUsers.values()));
     };
 
-    provider.awareness.on('change', updateAwareness);
+    provider.awareness.on('change', (changes: any, origin: any) => {
+      console.log(`[PRESENCE] Awareness 'change' event fired. Origin: ${origin}`, changes);
+      updateAwareness();
+    });
+    
     updateAwareness();
 
     return () => {

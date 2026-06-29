@@ -146,8 +146,25 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
         return;
     }
 
+    console.log(`\n================================`);
+    console.log(`[STAGE 3] MONACO MODEL CREATED`);
+    console.log(`[STAGE 3] Model URI: ${currentModel.uri.toString()}`);
+    console.log(`================================\n`);
+
     // The shared text type
     const type = doc.getText('monaco');
+    console.log(`[STAGE 2] Y.Text created/retrieved for ${activeFile.id}`);
+
+    // Observer registration for Stage 2
+    const observer = (event: Y.YTextEvent, transaction: Y.Transaction) => {
+      if (transaction.local) {
+        console.log(`[STAGE 2] LOCAL UPDATE on ${activeFile.id}`);
+      } else {
+        console.log(`[STAGE 2] REMOTE UPDATE on ${activeFile.id}`);
+      }
+    };
+    type.observe(observer);
+    console.log(`[STAGE 2] Observer registered for ${activeFile.id}`);
     
     // Create the binding
     const binding = new MonacoBinding(
@@ -157,12 +174,15 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
       provider.awareness
     );
     
+    console.log(`[STAGE 3] MonacoBinding created for ${activeFile.id}`);
+
     // Monkey-patch destroy to be idempotent and swallow errors from y-monaco's double-destroy bug
     const originalDestroy = binding.destroy.bind(binding);
     let isDestroyed = false;
     binding.destroy = () => {
       if (isDestroyed) return;
       isDestroyed = true;
+      console.log(`[STAGE 3] MonacoBinding destroyed for ${activeFile.id}`);
       try {
         originalDestroy();
       } catch (e) {
@@ -176,19 +196,24 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
     const initializeContent = async () => {
        if (hasLoadedContent.current.has(activeFile.id)) return;
        
+       // Wait for initial sync from WebSocket before checking if type is empty
+       if (!provider.synced) {
+         await new Promise<void>(resolve => {
+           const onSync = () => {
+             provider.off('sync', onSync);
+             resolve();
+           };
+           provider.on('sync', onSync);
+           // Fallback timeout in case server has no existing state
+           setTimeout(resolve, 800);
+         });
+       }
+
        if (type.length === 0) {
          try {
            const fileEntry = await getFileContent(activeFile.id);
-           console.log("DEBUG_TRACE: 1. GET response content: ", fileEntry.content);
            if (fileEntry.content && type.length === 0) {
-             let initialText = fileEntry.content;
-             console.log("DEBUG_TRACE: 2. Content passed into Yjs: ", initialText);
-             type.insert(0, initialText);
-             console.log("DEBUG_TRACE: 3. Content inside Y.Text: ", type.toString());
-             console.log("DEBUG_TRACE: 4. Content inside Monaco immediately after: ", editorRef.current?.getModel()?.getValue());
-             setTimeout(() => {
-               console.log("DEBUG_TRACE: 5. Content inside Monaco one second later: ", editorRef.current?.getModel()?.getValue());
-             }, 1000);
+             type.insert(0, fileEntry.content);
            }
          } catch (err: any) {
            console.error("Failed to load initial content", err);
@@ -203,6 +228,8 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
     initializeContent();
 
     return () => {
+      console.log(`[STAGE 2] Observer unregistered for ${activeFile.id}`);
+      type.unobserve(observer);
       if (bindingRef.current) {
         try {
           bindingRef.current.destroy();
