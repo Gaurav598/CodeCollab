@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import Editor, { useMonaco } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import { MonacoBinding } from 'y-monaco';
+import * as Y from 'yjs';
 import { renameFile, updateFileContent, getFileContent } from '@/services/workspaceService';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useYjsDoc } from '../../hooks/useYjsDoc';
