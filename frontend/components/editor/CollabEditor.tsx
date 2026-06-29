@@ -28,11 +28,11 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   const monacoApi = useMonaco();
   const activeFileId = useWorkspaceStore(state => state.activeTabId);
   const openFiles = useWorkspaceStore(state => state.openTabs);
-  
+
   const activeFile = openFiles.find(f => f.id === activeFileId);
   const theme = useThemeStore(state => state.theme);
   const updateTabLanguage = useWorkspaceStore(state => state.updateTabLanguage);
-  
+
   const openFileIds = React.useMemo(() => openFiles.map(f => f.id), [openFiles]);
   const { doc, provider, connected } = useYjsDoc(roomId, activeFileId, openFileIds);
   const users = useAwareness(provider);
@@ -40,7 +40,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   const isLocalScreenSharing = useWebRTCStore(state => state.isScreenSharing);
   const remoteScreenStream = useWebRTCStore(state => state.remoteScreenStream);
   const isScreenSplit = isRemoteScreenSharing || isLocalScreenSharing;
-  
+
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const editorDisposablesRef = useRef<monaco.IDisposable[]>([]);
   const bindingRef = useRef<MonacoBinding | null>(null);
@@ -144,7 +144,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
     // Wait until the editor has mounted the correct model for this file
     const currentModel = editorRef.current.getModel();
     if (!currentModel || (!currentModel.uri.path.endsWith(activeFile.id) && !currentModel.uri.path.endsWith(activeFile.path))) {
-        return;
+      return;
     }
 
     console.log(`\n================================`);
@@ -163,10 +163,20 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
       } else {
         console.log(`[STAGE 2] REMOTE UPDATE on ${activeFile.id}`);
       }
+
+      // Debounced Auto-Save (Fixes code loss on reload)
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          await updateFileContent(activeFile.id, type.toString());
+        } catch (e) {
+          console.error("Auto-save failed", e);
+        }
+      }, 1000);
     };
     type.observe(observer);
     console.log(`[STAGE 2] Observer registered for ${activeFile.id}`);
-    
+
     // Create the binding
     const binding = new MonacoBinding(
       type,
@@ -174,7 +184,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
       new Set([editorRef.current]),
       provider.awareness
     );
-    
+
     console.log(`[STAGE 3] MonacoBinding created for ${activeFile.id}`);
 
     // Monkey-patch destroy to be idempotent and swallow errors from y-monaco's double-destroy bug
@@ -190,38 +200,40 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
         // ignore yjs internal unobserve errors
       }
     };
-    
+
     bindingRef.current = binding;
 
     // Initial load from DB if completely empty
     const initializeContent = async () => {
-       if (hasLoadedContent.current.has(activeFile.id)) return;
-       
-       // Wait for Yjs to sync state across clients first
-       if (!provider.synced) {
-         await new Promise<void>(resolve => {
-           const onSync = () => {
-             provider.off('sync', onSync);
-             resolve();
-           };
-           provider.on('sync', onSync);
-           setTimeout(resolve, 800); // Safety fallback timeout
-         });
-       }
+      if (hasLoadedContent.current.has(activeFile.id)) return;
 
-       if (type.length === 0) {
-         try {
-           const fileEntry = await getFileContent(activeFile.id);
-           if (fileEntry.content && type.length === 0) {
-             type.insert(0, fileEntry.content);
-           }
-         } catch (err: any) {
-           console.error("Failed to load initial content", err);
-         }
-       }
-       hasLoadedContent.current.add(activeFile.id);
+      // Wait for Yjs to sync state across clients first
+      if (!provider.synced) {
+        await new Promise<void>(resolve => {
+          const onSync = (isSynced: boolean) => {
+            if (isSynced) {
+              provider.off('sync', onSync);
+              resolve();
+            }
+          };
+          provider.on('sync', onSync);
+          // Wait for actual sync, no fallback timeout that causes premature fetch
+        });
+      }
+
+      if (type.length === 0) {
+        try {
+          const fileEntry = await getFileContent(activeFile.id);
+          if (fileEntry.content && type.length === 0) {
+            type.insert(0, fileEntry.content);
+          }
+        } catch (err: any) {
+          console.error("Fetch Error during room creation, retrying...", err);
+        }
+      }
+      hasLoadedContent.current.add(activeFile.id);
     };
-    
+
     initializeContent();
 
     return () => {
@@ -314,7 +326,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
           };
         } catch (err: any) {
           if (err.name === 'AbortError') {
-             return { items: [], dispose: () => undefined };
+            return { items: [], dispose: () => undefined };
           }
           return { items: [], dispose: () => undefined };
         }
@@ -338,9 +350,9 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   const handleDownload = useCallback(() => {
     const code = getCode();
     if (!activeFile) return;
-    
+
     let filename = activeFile.path.split('/').pop() || 'code';
-    
+
     const extMap: Record<string, string> = {
       cpp: '.cpp',
       c: '.c',
@@ -348,7 +360,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
       javascript: '.js',
       python: '.py'
     };
-    
+
     const ext = activeFile.language ? extMap[activeFile.language] : '';
     if (ext && !filename.toLowerCase().endsWith(ext)) {
       filename += ext;
@@ -382,8 +394,8 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
       // explicitly save to user's personal saved codes
       const { saveExplicitCode } = await import('@/services/workspaceService');
       await saveExplicitCode(roomId, activeFile.path, activeFile.language, code);
-      
-      setToastMessage("Code explicitly saved to cloud workspace");
+
+      setToastMessage("Your code is now saved 😃");
       setTimeout(() => setToastMessage(""), 3000);
     } catch (error: any) {
       setToastMessage("Failed to save code");
@@ -396,7 +408,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   const handleRestoreSavedCode = useCallback((savedCode: any) => {
     // 1. Close modal
     setShowSavedCodes(false);
-    
+
     // 2. Overwrite current Yjs document with saved code
     if (doc && provider) {
       const type = doc.getText('monaco');
@@ -437,14 +449,14 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
           {toastMessage}
         </div>
       )}
-      
+
       <div className="flex min-w-0 flex-1 flex-col">
         <PresencePanel users={users} activeFile={activeFile} onLanguageChange={handleLanguageChange} onSave={handleExplicitSave} isSaving={isSaving} />
-        
-        <SavedCodesModal 
-          isOpen={showSavedCodes} 
-          onClose={() => setShowSavedCodes(false)} 
-          onRestore={handleRestoreSavedCode} 
+
+        <SavedCodesModal
+          isOpen={showSavedCodes}
+          onClose={() => setShowSavedCodes(false)}
+          onRestore={handleRestoreSavedCode}
         />
 
         {/* Screen share split layout */}
@@ -454,7 +466,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
             <div className="relative flex-1">
               <Editor
                 theme={theme === 'dark' ? 'vs-dark' : 'light'}
-                language={activeFile.language}
+                language={activeFile.language?.toLowerCase() || 'javascript'}
                 path={activeFile.path}
                 onMount={handleEditorDidMount}
                 options={{

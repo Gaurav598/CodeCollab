@@ -1,0 +1,86 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.0'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
+}
+
+group = 'com.collabcode'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+    mockitoAgent {
+        transitive = false
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('jjwt.version', "0.12.6")
+    set('mockito.version', "5.17.0")
+}
+
+dependencies {
+    // Web
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // OAuth2 Client (Google, GitHub)
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // Data MongoDB
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+
+    // AOP for Role Aspect
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Validation
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // WebSocket / STOMP
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // Actuator
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // JJWT
+    implementation "io.jsonwebtoken:jjwt-api:${property('jjwt.version')}"
+    runtimeOnly "io.jsonwebtoken:jjwt-impl:${property('jjwt.version')}"
+    runtimeOnly "io.jsonwebtoken:jjwt-jackson:${property('jjwt.version')}"
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    mockitoAgent "org.mockito:mockito-core:${property('mockito.version')}"
+}
+
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+test {
+    useJUnitPlatform()
+    jvmArgs("-javaagent:${configurations.mockitoAgent.asPath}")
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+}

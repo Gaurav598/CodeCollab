@@ -8,10 +8,10 @@
     "dev:sync": "npm --prefix sync-service run dev",
     "build:frontend": "npm --prefix frontend run build",
     "build:sync": "npm --prefix sync-service run build",
-    "build:backend": "cd backend && mvn -q -DskipTests package",
+    "build:backend": "cd backend && ./gradlew build -x test",
     "test:frontend": "npm --prefix frontend run lint",
     "test:sync": "npm --prefix sync-service run test",
-    "test:backend": "cd backend && mvn test"
+    "test:backend": "cd backend && ./gradlew test"
   },
   "workspaces": [
     "frontend",

@@ -1,12 +1,14 @@
-FROM maven:3.9.9-eclipse-temurin-21 AS builder
+FROM eclipse-temurin:21-jdk AS builder
 WORKDIR /app
-COPY pom.xml ./
-RUN mvn -q -DskipTests dependency:go-offline
+COPY gradlew ./
+COPY gradle ./gradle
+COPY build.gradle settings.gradle ./
+RUN ./gradlew dependencies --no-daemon
 COPY src ./src
-RUN mvn -q -DskipTests package
+RUN ./gradlew build -x test --no-daemon
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=builder /app/target/backend-0.1.0.jar app.jar
+COPY --from=builder /app/build/libs/backend-0.1.0.jar app.jar
 EXPOSE 8080
 CMD ["java", "-jar", "app.jar"]

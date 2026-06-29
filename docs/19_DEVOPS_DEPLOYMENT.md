@@ -27,7 +27,7 @@ docker-compose up -d
 
 # 3. Or start individual services for local dev
 docker-compose up -d redis
-cd backend && mvn spring-boot:run
+cd backend && ./gradlew bootRun
 cd sync-service && npm run dev
 cd frontend && npm run dev
 ```

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { X, Search, Trash2, Code2, Clock, Check } from 'lucide-react';
 import { getSavedCodes, deleteSavedCode, SavedCode } from '@/services/workspaceService';
+import { useModalStore } from '@/store/modalStore';
 
 interface SavedCodesModalProps {
   isOpen: boolean;
@@ -33,7 +34,8 @@ export function SavedCodesModal({ isOpen, onClose, onRestore }: SavedCodesModalP
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this saved code?")) return;
+    const confirmed = await useModalStore.getState().showConfirm("Delete Saved Code", "Are you sure you want to delete this saved code?");
+    if (!confirmed) return;
     try {
       await deleteSavedCode(id);
       setSavedCodes(prev => prev.filter(sc => sc.id !== id));
