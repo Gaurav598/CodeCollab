@@ -53,6 +53,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [currentModelUri, setCurrentModelUri] = useState("");
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
   useEffect(() => {
     providerRef.current = provider;
@@ -165,6 +166,8 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
       }
 
       // Debounced Auto-Save (Fixes code loss on reload)
+      if (userRole === "viewer") return; // Viewers do not have permission to save
+
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(async () => {
         try {
@@ -432,6 +435,8 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
         </div>
         <WorkspaceRightPanel
           roomId={roomId}
+          userRole={userRole}
+          users={users}
           activeFile={activeFile}
           openFiles={openFiles}
           getCode={getCode}
@@ -451,7 +456,15 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <PresencePanel users={users} activeFile={activeFile} onLanguageChange={handleLanguageChange} onSave={handleExplicitSave} isSaving={isSaving} />
+        <PresencePanel 
+          users={users} 
+          activeFile={activeFile} 
+          onLanguageChange={handleLanguageChange} 
+          onSave={handleExplicitSave} 
+          isSaving={isSaving}
+          isRightPanelOpen={isRightPanelOpen}
+          onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
+        />
 
         <SavedCodesModal
           isOpen={showSavedCodes}
@@ -529,14 +542,18 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
           )}
         </div>
       </div>
-      <WorkspaceRightPanel
-        roomId={roomId}
-        activeFile={activeFile}
-        openFiles={openFiles}
-        getCode={getCode}
-        getSelection={getSelection}
-        applyPreview={applyPreview}
-      />
+      {isRightPanelOpen && (
+        <WorkspaceRightPanel
+          roomId={roomId}
+          userRole={userRole}
+          users={users}
+          activeFile={activeFile}
+          openFiles={openFiles}
+          getCode={getCode}
+          getSelection={getSelection}
+          applyPreview={applyPreview}
+        />
+      )}
     </div>
   );
 }

@@ -33,3 +33,4 @@ debugger.ts
 # Test reports
 playwright-report/
 test-results/
+backend/.gradle/

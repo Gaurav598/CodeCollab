@@ -119,7 +119,11 @@ class StompService {
 
     public publish(destination: string, body: any) {
         if (this.client && this.client.connected) {
-            this.client.publish({ destination, body: JSON.stringify(body) });
+            this.client.publish({ 
+                destination, 
+                body: JSON.stringify(body),
+                headers: { 'content-type': 'application/json' }
+            });
         } else {
             console.warn(`[STOMP] Client disconnected, queueing message for ${destination}`);
             this.pendingMessages.push({ destination, body });

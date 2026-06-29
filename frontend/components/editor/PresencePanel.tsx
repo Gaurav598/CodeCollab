@@ -9,6 +9,8 @@ interface PresencePanelProps {
   onLanguageChange?: (language: string) => void;
   onSave?: (showSavedCodes: boolean) => void;
   isSaving?: boolean;
+  isRightPanelOpen?: boolean;
+  onToggleRightPanel?: () => void;
 }
 
 const LANGUAGES = [
@@ -19,7 +21,7 @@ const LANGUAGES = [
   { id: 'python', name: 'Python' },
 ];
 
-export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isSaving }: PresencePanelProps) {
+export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isSaving, isRightPanelOpen, onToggleRightPanel }: PresencePanelProps) {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -117,6 +119,19 @@ export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isS
             </span>
           </div>
         ))}
+      </div>
+
+      <div className="border-l border-border pl-4 ml-2">
+        <button
+          onClick={onToggleRightPanel}
+          className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors ${isRightPanelOpen ? 'bg-primary/10 text-primary hover:bg-primary/20' : 'text-muted-foreground hover:bg-muted/80'}`}
+          title={isRightPanelOpen ? "Hide Sidebar" : "Show Sidebar"}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+            <line x1="15" x2="15" y1="3" y2="21" />
+          </svg>
+        </button>
       </div>
     </div>
   );

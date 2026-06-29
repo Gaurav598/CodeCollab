@@ -39,14 +39,14 @@ public class ChatService {
         this.roomAccessService = roomAccessService;
     }
 
-    public ChatMessageDto saveMessage(UUID roomId, UUID senderId, String content) {
+    public ChatMessageDto saveMessage(UUID messageId, UUID roomId, UUID senderId, String content) {
         roomAccessService.requireMember(roomId, senderId);
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
         String normalizedContent = normalizeMessage(content);
 
         ChatMessageDto dto = new ChatMessageDto();
-        dto.setId(UUID.randomUUID());
+        dto.setId(messageId != null ? messageId : UUID.randomUUID());
         dto.setSenderId(senderId);
         dto.setSenderName(sender.getUsername());
         dto.setMessage(normalizedContent);
@@ -78,6 +78,21 @@ public class ChatService {
                 ));
 
         return dto;
+    }
+
+    public ChatMessageDto deleteMessage(UUID roomId, UUID messageId, UUID userId) {
+        roomAccessService.requireOwner(roomId, userId);
+        CopyOnWriteArrayList<ChatMessageDto> list = roomMessages.get(roomId);
+        if (list != null) {
+            for (ChatMessageDto msg : list) {
+                if (msg.getId().equals(messageId)) {
+                    msg.setDeleted(true);
+                    msg.setMessage("This message was deleted by the owner.");
+                    return msg;
+                }
+            }
+        }
+        throw ApiException.notFound("MESSAGE_NOT_FOUND", "Message not found");
     }
 
     public List<ChatMessageDto> getMessageHistory(UUID roomId, UUID userId) {

@@ -31,8 +31,8 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
     localStream: null,
     remoteStreams: {},
     peerConnections: {},
-    isAudioMuted: false,
-    isVideoMuted: false,
+    isAudioMuted: true,
+    isVideoMuted: true,
     isScreenSharing: false,
     isRemoteScreenSharing: false,
     remoteScreenStream: null,
@@ -65,11 +65,15 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
         const pc = new RTCPeerConnection(ICE_SERVERS);
         const { localStream, addRemoteStream } = get();
 
-        // Add local tracks
-        if (localStream) {
+        // Add local tracks, or transceivers if muted
+        if (localStream && localStream.getTracks().length > 0) {
             localStream.getTracks().forEach(track => {
                 pc.addTrack(track, localStream);
             });
+        } else {
+            const emptyStream = localStream || new MediaStream();
+            pc.addTransceiver('audio', { direction: 'sendrecv', streams: [emptyStream] });
+            pc.addTransceiver('video', { direction: 'sendrecv', streams: [emptyStream] });
         }
 
         // Handle remote tracks — detect if it's a screen share (display surface)
@@ -123,13 +127,45 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
         return pc;
     },
 
-    toggleAudio: () => {
-        const { localStream, isAudioMuted } = get();
-        if (localStream) {
-            localStream.getAudioTracks().forEach(track => {
-                track.enabled = isAudioMuted;
+    toggleAudio: async () => {
+        const { localStream, isAudioMuted, peerConnections } = get();
+        if (isAudioMuted) {
+            try {
+                const newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const newAudioTrack = newStream.getAudioTracks()[0];
+                
+                if (localStream) {
+                    localStream.addTrack(newAudioTrack);
+                }
+                
+                Object.values(peerConnections).forEach(pc => {
+                    const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'audio');
+                    if (transceiver && transceiver.sender) {
+                        transceiver.sender.replaceTrack(newAudioTrack);
+                    }
+                });
+                set({ isAudioMuted: false, localStream: localStream || newStream });
+            } catch (err) {
+                console.error("Failed to enable audio", err);
+                setTimeout(() => {
+                    useModalStore.getState().showAlert("Microphone Error", "Failed to access microphone. Please check your browser permissions.");
+                }, 0);
+            }
+        } else {
+            if (localStream) {
+                localStream.getAudioTracks().forEach(track => {
+                    track.enabled = false;
+                    track.stop();
+                    localStream.removeTrack(track);
+                });
+            }
+            Object.values(peerConnections).forEach(pc => {
+                const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'audio');
+                if (transceiver && transceiver.sender) {
+                    transceiver.sender.replaceTrack(null);
+                }
             });
-            set({ isAudioMuted: !isAudioMuted });
+            set({ isAudioMuted: true });
         }
     },
 
@@ -145,14 +181,14 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 }
                 
                 Object.values(peerConnections).forEach(pc => {
-                    const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-                    if (sender) {
-                        sender.replaceTrack(newVideoTrack);
+                    const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'video');
+                    if (transceiver && transceiver.sender) {
+                        transceiver.sender.replaceTrack(newVideoTrack);
                     }
                 });
                 set({ isVideoMuted: false, localStream: localStream || newStream });
             } catch (err) {
-                console.error("Failed to enable video (permissions denied?)", err);
+                console.error("Failed to enable video", err);
                 setTimeout(() => {
                     useModalStore.getState().showAlert("Camera Error", "Failed to access camera. Please check your browser permissions.");
                 }, 0);
@@ -160,12 +196,17 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
         } else {
             if (localStream) {
                 localStream.getVideoTracks().forEach(track => {
+                    track.enabled = false;
                     track.stop();
                     localStream.removeTrack(track);
                 });
-                // We don't remove the track from RTCPeerConnection, keeping the sender active 
-                // but stopped so peers see black instead of crashing the connection.
             }
+            Object.values(peerConnections).forEach(pc => {
+                const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'video');
+                if (transceiver && transceiver.sender) {
+                    transceiver.sender.replaceTrack(null);
+                }
+            });
             set({ isVideoMuted: true });
         }
     },

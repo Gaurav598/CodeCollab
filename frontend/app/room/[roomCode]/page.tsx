@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/workspace/Sidebar";
 import { Tabs } from "@/components/workspace/Tabs";
-import { Save } from "lucide-react";
+import { Save, Lock } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const CollabEditor = dynamic(
@@ -20,14 +20,43 @@ import { useWorkspaceStore } from "@/store/workspaceStore";
 import { useChatStore } from "@/store/chatStore";
 import { stompService } from "@/services/stompClient";
 
-function PendingScreen({ roomId, userId }: { roomId: string; userId: string }) {
+const CS_QUOTES = [
+  "Talk is cheap. Show me the code. — Linus Torvalds",
+  "Programs must be written for people to read, and only incidentally for machines to execute. — Harold Abelson",
+  "Any fool can write code that a computer can understand. Good programmers write code that humans can understand. — Martin Fowler",
+  "First, solve the problem. Then, write the code. — John Johnson",
+  "Experience is the name everyone gives to their mistakes. — Oscar Wilde",
+  "Java is to JavaScript what car is to Carpet. — Chris Heilmann",
+  "Sometimes it pays to stay in bed on Monday, rather than spending the rest of the week debugging Monday's code. — Dan Salomon",
+  "Perfection is achieved not when there is nothing more to add, but rather when there is nothing more to take away. — Antoine de Saint-Exupery",
+  "Code is like humor. When you have to explain it, it’s bad. — Cory House",
+  "Fix the cause, not the symptom. — Steve Maguire",
+  "Optimism is an occupational hazard of programming: feedback is the treatment. — Kent Beck",
+  "When to use iterative development? You should use iterative development only on projects that you want to succeed. — Martin Fowler",
+  "Simplicity is the soul of efficiency. — Austin Freeman",
+  "Before software can be reusable it first has to be usable. — Ralph Johnson",
+  "Make it work, make it right, make it fast. — Kent Beck",
+  "The best error message is the one that never shows up. — Thomas Fuchs",
+  "If at first you don’t succeed; call it version 1.0 — Unknown",
+  "Programming isn't about what you know; it's about what you can figure out. — Chris Pine",
+  "Testing leads to failure, and failure leads to understanding. — Burt Rutan",
+  "The most disastrous thing that you can ever learn is your first programming language. — Alan Kay"
+];
+
+function PendingScreen({ roomId, userId, onApproved }: { roomId: string; userId: string; onApproved: (role: string) => void }) {
+  const [quote, setQuote] = useState("");
+
+  useEffect(() => {
+    setQuote(CS_QUOTES[Math.floor(Math.random() * CS_QUOTES.length)]);
+  }, []);
+
   useEffect(() => {
     const dest = `/topic/room.${roomId}.approval`;
     const sub = stompService.subscribe(dest, (msg) => {
       try {
         const body = JSON.parse(msg.body);
         if (body.event === "user.approved" && body.userId === userId) {
-          window.location.reload();
+          onApproved(body.role);
         }
       } catch (e) {}
     });
@@ -35,9 +64,47 @@ function PendingScreen({ roomId, userId }: { roomId: string; userId: string }) {
   }, [roomId, userId]);
 
   return (
-    <div className="flex h-full w-full items-center justify-center bg-background text-muted-foreground flex-col gap-4">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      <p>Waiting for room owner approval...</p>
+    <div className="flex h-screen w-full items-center justify-center bg-background/95 backdrop-blur-sm relative overflow-hidden">
+      {/* Decorative background elements */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] opacity-50 pointer-events-none" />
+      
+      <div className="z-10 flex flex-col items-center max-w-lg mx-auto text-center p-8 bg-card/50 border border-border/50 rounded-2xl shadow-2xl backdrop-blur-md">
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
+          <div className="relative bg-background border border-border p-4 rounded-full shadow-inner">
+            <Lock className="w-8 h-8 text-primary animate-pulse" />
+          </div>
+        </div>
+        
+        <h2 className="text-3xl font-bold tracking-tight mb-3 bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+          Awaiting Approval
+        </h2>
+        <p className="text-muted-foreground text-lg mb-8">
+          The room owner has been notified and needs to approve your request to join.
+        </p>
+
+        <div className="w-full h-[1px] bg-border/50 mb-8 relative">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-4 bg-transparent text-xs text-muted-foreground/50 uppercase tracking-widest">
+            While you wait
+          </div>
+        </div>
+
+        <div className="min-h-[80px] flex items-center justify-center">
+          {quote ? (
+            <p className="text-sm font-medium text-muted-foreground/80 italic animate-in fade-in zoom-in duration-500">
+              "{quote.split(' — ')[0]}"
+              <br />
+              <span className="text-xs text-primary/70 not-italic mt-2 block">— {quote.split(' — ')[1]}</span>
+            </p>
+          ) : (
+            <div className="flex space-x-2 justify-center items-center h-full">
+              <div className="animate-bounce w-2 h-2 bg-primary/50 rounded-full" style={{ animationDelay: '0ms' }}></div>
+              <div className="animate-bounce w-2 h-2 bg-primary/50 rounded-full" style={{ animationDelay: '150ms' }}></div>
+              <div className="animate-bounce w-2 h-2 bg-primary/50 rounded-full" style={{ animationDelay: '300ms' }}></div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -129,7 +196,9 @@ export default function RoomPage() {
   const userRole = isOwner ? "owner" : (room.role ?? "editor");
 
   if (userRole === "pending") {
-    return <PendingScreen roomId={room.id} userId={user!.id} />;
+    return <PendingScreen roomId={room.id} userId={user!.id} onApproved={(newRole) => {
+      setRoom({ ...room, role: newRole });
+    }} />;
   }
 
   return (
