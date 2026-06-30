@@ -5,7 +5,8 @@ import { createPortal } from "react-dom";
 import { FileEntry, createFile, renameFile, deleteFile } from "@/services/workspaceService";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { useModalStore } from "@/store/modalStore";
-import { FileCode, MoreVertical, Plus } from "lucide-react";
+import { MoreVertical, Plus } from "lucide-react";
+import { FileIcon } from "./FileIcon";
 
 interface ContextMenuState {
   x: number;
@@ -115,8 +116,8 @@ function Node({
       onClick={handleClick}
       onContextMenu={(e) => onContextMenu(e, file)}
     >
-      <span className="mr-2 opacity-80">
-        <FileCode size={15} />
+      <span className="mr-2 opacity-90 drop-shadow-sm">
+        <FileIcon name={file.path} size={15} />
       </span>
       <span className="truncate flex-1">{file.path}</span>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/workspace/Sidebar";
 import { Tabs } from "@/components/workspace/Tabs";
@@ -139,9 +139,12 @@ export default function RoomPage() {
     }
   }, [room?.id]);
 
+  const hasFetched = useRef(false);
+
   useEffect(() => {
     if (!isLoading) {
-      if (user && roomCode) {
+      if (user && roomCode && !hasFetched.current) {
+        hasFetched.current = true;
         fetchRoom();
       } else if (!user) {
         router.push("/login");
@@ -175,17 +178,78 @@ export default function RoomPage() {
 
   if (isLoading || loading) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-background text-muted-foreground">
-        Loading workspace...
+      <div className="flex h-screen w-full bg-background overflow-hidden">
+        {/* Sidebar Skeleton */}
+        <div className="w-[200px] border-r border-border bg-muted/10 flex flex-col">
+          <div className="h-[45px] border-b border-border bg-muted/20 animate-pulse" />
+          <div className="flex-1 p-4 space-y-4 mt-2">
+            <div className="h-3 bg-muted/20 rounded w-3/4 animate-pulse" />
+            <div className="h-3 bg-muted/20 rounded w-5/6 animate-pulse" />
+            <div className="h-3 bg-muted/20 rounded w-1/2 animate-pulse" />
+            <div className="h-3 bg-muted/20 rounded w-2/3 animate-pulse" />
+          </div>
+        </div>
+        
+        {/* Main Content Skeleton */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Tabs Skeleton */}
+          <div className="h-11 border-b border-border bg-muted/5 flex items-center px-4 space-x-2">
+            <div className="h-7 bg-muted/20 rounded w-32 animate-pulse" />
+            <div className="h-7 bg-muted/20 rounded w-24 animate-pulse" />
+          </div>
+          
+          <div className="flex-1 flex">
+            {/* Code Editor Skeleton */}
+            <div className="flex-1 p-6 space-y-4 bg-[#1e1e1e]">
+              <div className="h-4 bg-muted/20 rounded w-1/3 animate-pulse" />
+              <div className="h-4 bg-muted/20 rounded w-1/2 animate-pulse ml-8" />
+              <div className="h-4 bg-muted/20 rounded w-1/4 animate-pulse ml-16" />
+              <div className="h-4 bg-muted/20 rounded w-2/3 animate-pulse ml-8" />
+              <div className="h-4 bg-muted/20 rounded w-1/5 animate-pulse" />
+            </div>
+            
+            {/* Right Panel Skeleton */}
+            <div className="w-[300px] md:w-[350px] border-l border-border bg-muted/5 flex flex-col">
+              <div className="h-11 border-b border-border bg-muted/20 animate-pulse" />
+              <div className="flex-1 p-4 space-y-4">
+                <div className="h-32 bg-muted/20 rounded-xl animate-pulse" />
+                <div className="h-32 bg-muted/20 rounded-xl animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error || !room) {
     return (
-      <div className="p-8">
-        <div className="bg-red-500/10 text-red-500 p-4 rounded mb-6">
-          {error || "Room not found."}
+      <div className="flex h-screen w-full items-center justify-center bg-background/95 backdrop-blur-sm relative overflow-hidden text-center">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-500/10 rounded-full blur-[100px] opacity-50 pointer-events-none" />
+        
+        <div className="z-10 flex flex-col items-center max-w-md mx-auto p-8 bg-card/50 border border-border/50 rounded-2xl shadow-2xl backdrop-blur-md">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-red-500/20 blur-xl rounded-full" />
+            <div className="relative bg-background border border-border p-4 rounded-full shadow-inner text-red-500">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-bold tracking-tight mb-2 text-foreground">
+            Something went wrong
+          </h2>
+          <p className="text-muted-foreground text-sm mb-6">
+            {error || "Room not found or you don't have access."}
+          </p>
+
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="px-6 py-2 bg-primary text-primary-foreground font-medium rounded-md shadow hover:bg-primary/90 transition-colors"
+          >
+            Return to Dashboard
+          </button>
         </div>
       </div>
     );

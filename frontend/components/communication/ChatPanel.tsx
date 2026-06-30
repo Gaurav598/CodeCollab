@@ -90,7 +90,7 @@ export function ChatPanel({ roomId, userRole, onClose }: ChatPanelProps) {
                                     )}
                                 </div>
                                 <div 
-                                    className={`px-3 py-2 rounded-lg max-w-[90%] break-words whitespace-pre-wrap text-sm shadow-sm ${
+                                    className={`px-3 py-2 rounded-lg max-w-[90%] break-words whitespace-pre-wrap text-[13px] shadow-sm ${
                                         msg.deleted 
                                             ? 'bg-muted/50 text-muted-foreground italic border border-border/50'
                                             : isMe 
@@ -100,7 +100,32 @@ export function ChatPanel({ roomId, userRole, onClose }: ChatPanelProps) {
                                                     : 'bg-muted text-foreground border border-border'
                                     }`}
                                 >
-                                    {msg.message}
+                                    {msg.deleted ? (
+                                        msg.message
+                                    ) : (
+                                        msg.message.split(/(```[\s\S]*?```)/g).map((part, index) => {
+                                            if (part.startsWith('```') && part.endsWith('```')) {
+                                                const match = part.match(/```(\w*)\n?([\s\S]*?)```/);
+                                                if (match) {
+                                                    const lang = match[1];
+                                                    const code = match[2];
+                                                    return (
+                                                        <div key={index} className={`my-2 bg-[#1e1e1e] rounded-md overflow-hidden border border-black/20 text-left ${isMe ? 'shadow-inner' : 'shadow-sm'}`}>
+                                                            {lang && (
+                                                                <div className="bg-black/40 px-3 py-1 text-[10px] font-mono text-gray-400 uppercase border-b border-white/5">
+                                                                    {lang}
+                                                                </div>
+                                                            )}
+                                                            <pre className="p-3 text-[12px] font-mono text-blue-300 overflow-x-auto scrollbar-thin">
+                                                                <code>{code}</code>
+                                                            </pre>
+                                                        </div>
+                                                    );
+                                                }
+                                            }
+                                            return <span key={index}>{part}</span>;
+                                        })
+                                    )}
                                 </div>
                             </div>
                         );

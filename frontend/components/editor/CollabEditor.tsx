@@ -18,6 +18,7 @@ import { useModalStore } from '@/store/modalStore';
 import { useWebRTCStore } from '@/store/webrtcStore';
 import { WorkspaceRightPanel } from '@/components/workspace/WorkspaceRightPanel';
 import { SavedCodesModal } from '../workspace/SavedCodesModal';
+import { WebRTCConnectionHandler } from '../communication/WebRTCConnectionHandler';
 
 interface CollabEditorProps {
   roomId: string;
@@ -39,6 +40,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   const isRemoteScreenSharing = useWebRTCStore(state => state.isRemoteScreenSharing);
   const isLocalScreenSharing = useWebRTCStore(state => state.isScreenSharing);
   const remoteScreenStream = useWebRTCStore(state => state.remoteScreenStream);
+  const localStream = useWebRTCStore(state => state.localStream);
   const isScreenSplit = isRemoteScreenSharing || isLocalScreenSharing;
 
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -455,6 +457,8 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
         </div>
       )}
 
+      <WebRTCConnectionHandler roomId={roomId} />
+
       <div className="flex min-w-0 flex-1 flex-col">
         <PresencePanel 
           users={users} 
@@ -473,72 +477,90 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
         />
 
         {/* Screen share split layout */}
-        <div className={`flex min-h-0 flex-1 ${isScreenSplit ? 'flex-row' : 'flex-col'}`}>
-          {/* Code Editor */}
-          <div className={`relative flex flex-col ${isScreenSplit ? 'w-1/2 border-r border-border' : 'flex-1'} transition-all duration-300`}>
-            <div className="relative flex-1">
-              <Editor
-                theme={theme === 'dark' ? 'vs-dark' : 'light'}
-                language={activeFile.language?.toLowerCase() || 'javascript'}
-                path={activeFile.path}
-                onMount={handleEditorDidMount}
-                options={{
-                  minimap: { enabled: !isScreenSplit },
-                  fontSize: 14,
-                  lineHeight: 22,
-                  fontFamily: "'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Courier New', monospace",
-                  cursorBlinking: "smooth",
-                  cursorStyle: "line",
-                  renderLineHighlight: "all",
-                  bracketPairColorization: { enabled: true },
-                  wordWrap: 'on',
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  inlineSuggest: { enabled: true },
-                  padding: { top: 16, bottom: 16 },
-                  readOnly: userRole === "viewer"
-                }}
-              />
-              <RemoteCursors editor={editorRef.current} users={users} />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className={`flex min-h-0 flex-1 ${isScreenSplit ? 'flex-row' : 'flex-col'}`}>
+            {/* Code Editor */}
+            <div className={`relative flex flex-col ${isScreenSplit ? 'w-[60%] border-r border-border' : 'flex-1'} min-h-0 transition-all duration-300`}>
+              <div className="relative flex-1 min-h-0">
+                <Editor
+                  theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                  language={activeFile.language?.toLowerCase() || 'javascript'}
+                  path={activeFile.path}
+                  onMount={handleEditorDidMount}
+                  options={{
+                    minimap: { enabled: !isScreenSplit },
+                    fontSize: 14,
+                    lineHeight: 22,
+                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Courier New', monospace",
+                    cursorBlinking: "smooth",
+                    cursorStyle: "line",
+                    renderLineHighlight: "all",
+                    bracketPairColorization: { enabled: true },
+                    wordWrap: 'on',
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    inlineSuggest: { enabled: true },
+                    padding: { top: 16, bottom: 16 },
+                    readOnly: userRole === "viewer"
+                  }}
+                />
+                <RemoteCursors editor={editorRef.current} users={users} />
+              </div>
             </div>
 
-            {!isScreenSplit && (
-              <ExecutionPanel
-                fileId={activeFile.id}
-                language={activeFile.language}
-                getCode={getCode}
-                disabled={!connected}
-              />
+            {/* Shared Screen Panel */}
+            {isScreenSplit && (
+              <div className="relative flex w-[40%] flex-col bg-background min-h-0 transition-all duration-300">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted shrink-0">
+                  <span className="text-xs font-medium text-foreground truncate">
+                    {isLocalScreenSharing ? '🖥️ You are sharing' : '🖥️ Screen Share'}
+                  </span>
+                  {isRemoteScreenSharing && (
+                    <span className="text-xs text-muted-foreground truncate">Participant is sharing</span>
+                  )}
+                </div>
+                <div className="flex-1 flex min-h-0 min-w-0 items-center justify-center p-3 bg-muted/20 overflow-hidden relative">
+                  {isLocalScreenSharing && localStream ? (
+                    <div className="w-full h-full relative flex flex-col items-center justify-center min-h-0">
+                      <video 
+                        ref={(el) => { if (el) el.srcObject = localStream; }}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="max-w-full max-h-full object-contain rounded-md shadow-xl border border-border bg-black"
+                      />
+                      <div className="absolute bottom-4 bg-background/80 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border border-border flex items-center gap-2">
+                         <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0"></span>
+                         <span className="text-xs font-medium whitespace-nowrap">Your screen is visible</span>
+                      </div>
+                    </div>
+                  ) : remoteScreenStream ? (
+                    <div className="w-full h-full relative flex flex-col items-center justify-center min-h-0">
+                      <video
+                        autoPlay
+                        playsInline
+                        ref={el => { if (el) el.srcObject = remoteScreenStream; }}
+                        className="max-w-full max-h-full rounded-lg shadow-xl object-contain bg-black border border-border"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground text-sm text-center">
+                      <p className="font-semibold text-foreground">Your screen is visible to others.</p>
+                      <p className="text-xs mt-1">Stop sharing to return to full editor.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
-          {/* Shared Screen Panel */}
-          {isScreenSplit && (
-            <div className="relative flex w-1/2 flex-col bg-background transition-all duration-300">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted">
-                <span className="text-xs font-medium text-foreground">
-                  {isLocalScreenSharing ? '🖥️ You are sharing your screen' : '🖥️ Screen Share'}
-                </span>
-                {isRemoteScreenSharing && (
-                  <span className="text-xs text-muted-foreground">Participant is sharing</span>
-                )}
-              </div>
-              <div className="flex-1 flex items-center justify-center p-3 bg-muted/20">
-                {remoteScreenStream ? (
-                  <video
-                    autoPlay
-                    playsInline
-                    ref={el => { if (el) el.srcObject = remoteScreenStream; }}
-                    className="max-w-full max-h-full rounded-lg shadow-xl object-contain bg-background border border-border"
-                  />
-                ) : (
-                  <div className="text-muted-foreground text-sm text-center">
-                    <p className="font-semibold text-foreground">Your screen is visible to others.</p>
-                    <p className="text-xs mt-1">Stop sharing to return to full editor.</p>
-                  </div>
-                )}
-              </div>
-            </div>
+          {activeFile && (
+            <ExecutionPanel
+              fileId={activeFile.id}
+              language={activeFile.language}
+              getCode={getCode}
+              disabled={!connected}
+            />
           )}
         </div>
       </div>

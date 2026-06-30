@@ -6,6 +6,7 @@ interface WebRTCState {
     localStream: MediaStream | null;
     remoteStreams: Record<string, MediaStream>; // keyed by userId
     peerConnections: Record<string, RTCPeerConnection>; // keyed by userId
+    remoteVideoStates: Record<string, boolean>;
     isAudioMuted: boolean;
     isVideoMuted: boolean;
     isScreenSharing: boolean;
@@ -16,11 +17,14 @@ interface WebRTCState {
     removeRemoteStream: (userId: string) => void;
     toggleAudio: () => void;
     toggleVideo: () => Promise<void>;
-    startScreenShare: () => Promise<void>;
+    startScreenShare: (onStop?: () => void) => Promise<void>;
     stopScreenShare: () => Promise<void>;
+    setRemoteScreenShare: (userId: string, isSharing: boolean) => void;
     addPeerConnection: (userId: string, pc: RTCPeerConnection) => void;
     removePeerConnection: (userId: string) => void;
+    setRemoteVideoState: (userId: string, isMuted: boolean) => void;
     createPeerConnection: (targetUserId: string, isInitiator: boolean, roomId: string) => RTCPeerConnection;
+    remoteScreenShareIntents: Record<string, boolean>;
 }
 
 const ICE_SERVERS = {
@@ -31,17 +35,23 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
     localStream: null,
     remoteStreams: {},
     peerConnections: {},
+    remoteVideoStates: {},
     isAudioMuted: true,
     isVideoMuted: true,
     isScreenSharing: false,
     isRemoteScreenSharing: false,
     remoteScreenStream: null,
+    remoteScreenShareIntents: {},
 
     setLocalStream: (stream) => set({ localStream: stream }),
     
-    addRemoteStream: (userId, stream) => set((state) => ({
-        remoteStreams: { ...state.remoteStreams, [userId]: stream }
-    })),
+    addRemoteStream: (userId, stream) => set((state) => {
+        const isScreenIntended = state.remoteScreenShareIntents[userId];
+        return {
+            remoteStreams: { ...state.remoteStreams, [userId]: stream },
+            ...(isScreenIntended ? { isRemoteScreenSharing: true, remoteScreenStream: stream } : {})
+        };
+    }),
 
     removeRemoteStream: (userId) => set((state) => {
         const newStreams = { ...state.remoteStreams };
@@ -60,6 +70,12 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
         delete newPCs[userId];
         return { peerConnections: newPCs };
     }),
+
+    setRemoteVideoState: (userId, isMuted) => {
+        set(state => ({
+            remoteVideoStates: { ...state.remoteVideoStates, [userId]: isMuted }
+        }));
+    },
 
     createPeerConnection: (targetUserId, isInitiator, roomId) => {
         const pc = new RTCPeerConnection(ICE_SERVERS);
@@ -211,7 +227,7 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
         }
     },
 
-    startScreenShare: async () => {
+    startScreenShare: async (onStop?: () => void) => {
         try {
             const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
             const { localStream, peerConnections } = get();
@@ -220,15 +236,16 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
             
             // Replace video track in all peer connections
             Object.values(peerConnections).forEach(pc => {
-                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-                if (sender) {
-                    sender.replaceTrack(screenTrack);
+                const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'video');
+                if (transceiver && transceiver.sender) {
+                    transceiver.sender.replaceTrack(screenTrack);
                 }
             });
 
             // Handle when user clicks "Stop sharing" in the browser UI
             screenTrack.onended = () => {
                 get().stopScreenShare();
+                if (onStop) onStop();
             };
 
             set({ isScreenSharing: true, localStream: screenStream });
@@ -239,22 +256,48 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
 
     stopScreenShare: async () => {
         try {
-            // Revert back to camera
-            const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            const { peerConnections } = get();
+            const { peerConnections, localStream } = get();
             
-            const cameraTrack = cameraStream.getVideoTracks()[0];
+            // Stop the screen share tracks
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
             
             Object.values(peerConnections).forEach(pc => {
-                const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-                if (sender) {
-                    sender.replaceTrack(cameraTrack);
+                const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'video');
+                if (transceiver && transceiver.sender) {
+                    transceiver.sender.replaceTrack(null);
                 }
             });
 
-            set({ isScreenSharing: false, localStream: cameraStream, isVideoMuted: false, isAudioMuted: false });
+            // Recover the audio track if it is still being sent
+            let currentAudioTrack = null;
+            const pcIds = Object.keys(peerConnections);
+            if (pcIds.length > 0) {
+                const transceiver = peerConnections[pcIds[0]].getTransceivers().find(t => t.receiver.track.kind === 'audio');
+                if (transceiver && transceiver.sender && transceiver.sender.track) {
+                    currentAudioTrack = transceiver.sender.track;
+                }
+            }
+
+            const newLocalStream = currentAudioTrack ? new MediaStream([currentAudioTrack]) : null;
+
+            set({ isScreenSharing: false, localStream: newLocalStream, isVideoMuted: true });
         } catch (err) {
             console.error('Failed to stop screen share', err);
         }
-    }
+    },
+
+    setRemoteScreenShare: (userId, isSharing) => set((state) => {
+        const intents = { ...state.remoteScreenShareIntents, [userId]: isSharing };
+        const stream = state.remoteStreams[userId];
+        
+        if (isSharing && stream) {
+            return { remoteScreenShareIntents: intents, isRemoteScreenSharing: true, remoteScreenStream: stream };
+        } else if (!isSharing) {
+            return { remoteScreenShareIntents: intents, isRemoteScreenSharing: false, remoteScreenStream: null };
+        } else {
+            return { remoteScreenShareIntents: intents };
+        }
+    })
 }));

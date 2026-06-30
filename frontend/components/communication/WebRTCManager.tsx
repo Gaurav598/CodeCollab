@@ -7,6 +7,7 @@ import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff } from 'lucide-react'
 interface WebRTCManagerProps {
     roomId: string;
     users?: import('@/hooks/useAwareness').UserAwareness[];
+    userRole?: string;
 }
 
 function VideoTile({
@@ -80,7 +81,7 @@ function VideoTile({
     );
 }
 
-export function WebRTCManager({ roomId, users }: WebRTCManagerProps) {
+export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
     const currentUser = useAuthStore(state => state.user);
     const {
         localStream,
@@ -95,7 +96,8 @@ export function WebRTCManager({ roomId, users }: WebRTCManagerProps) {
         stopScreenShare,
     } = useWebRTCStore();
 
-    const [remoteVideoStates, setRemoteVideoStates] = React.useState<Record<string, boolean>>({});
+    const [warningMessage, setWarningMessage] = React.useState<string | null>(null);
+    const remoteVideoStates = useWebRTCStore(state => state.remoteVideoStates);
 
     // Initialize local stream just to get permission, then stop it immediately
     useEffect(() => {
@@ -133,101 +135,37 @@ export function WebRTCManager({ roomId, users }: WebRTCManagerProps) {
         });
     }, [isVideoMuted, roomId, currentUser?.id]);
 
-    // Handle signaling and presence
-    useEffect(() => {
-        const subSignal = stompService.subscribe(`/user/queue/webrtc.signal`, async (msg) => {
-            const data = JSON.parse(msg.body);
-            const { senderId, type, payload } = data;
-
-            let pc = useWebRTCStore.getState().peerConnections[senderId];
-
-            try {
-                if (type === 'OFFER') {
-                    if (!pc) pc = useWebRTCStore.getState().createPeerConnection(senderId, false, roomId);
-                    await pc.setRemoteDescription(new RTCSessionDescription(payload));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    stompService.publish('/app/webrtc.signal', {
-                        targetUserId: senderId,
-                        roomId,
-                        type: 'ANSWER',
-                        payload: pc.localDescription
-                    });
-                } else if (type === 'ANSWER') {
-                    if (pc) await pc.setRemoteDescription(new RTCSessionDescription(payload));
-                } else if (type === 'ICE') {
-                    if (pc) await pc.addIceCandidate(new RTCIceCandidate(payload));
-                }
-            } catch (err) {
-                console.error('[WebRTC] Signaling error', err);
-            }
-        });
-
-        const subVideoPresence = stompService.subscribe(`/topic/room.${roomId}.video.presence`, (msg) => {
-            const data = JSON.parse(msg.body);
-            const { userId, type } = data;
-
-            if (userId === currentUser?.id) return;
-
-            if (type === 'VIDEO_STATE') {
-                setRemoteVideoStates(prev => ({ ...prev, [userId]: data.isVideoMuted }));
-            } else if (type === 'JOINED') {
-                // Tell the new user our current mute state immediately
-                stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'VIDEO_STATE', userId: currentUser?.id, isVideoMuted: useWebRTCStore.getState().isVideoMuted });
-                
-                if (currentUser!.id > userId) {
-                    if (!useWebRTCStore.getState().peerConnections[userId]) {
-                        useWebRTCStore.getState().createPeerConnection(userId, true, roomId);
-                    }
-                } else {
-                    stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'PRESENT', userId: currentUser?.id });
-                }
-            } else if (type === 'PRESENT') {
-                if (currentUser!.id > userId) {
-                    if (!useWebRTCStore.getState().peerConnections[userId]) {
-                        useWebRTCStore.getState().createPeerConnection(userId, true, roomId);
-                    }
-                }
-            } else if (type === 'LEFT') {
-                useWebRTCStore.getState().removePeerConnection(userId);
-                useWebRTCStore.getState().removeRemoteStream(userId);
-                setRemoteVideoStates(prev => {
-                    const next = { ...prev };
-                    delete next[userId];
-                    return next;
-                });
-            }
-        });
-
-        // Announce we have entered the video tab
-        // Use a short delay to ensure STOMP subscriptions are fully registered with the broker
-        // before our peers send us their OFFER messages
-        const joinTimeout = setTimeout(() => {
-            stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'JOINED', userId: currentUser?.id });
-        }, 300);
-
-        return () => {
-            clearTimeout(joinTimeout);
-            stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'LEFT', userId: currentUser?.id });
-            stompService.unsubscribe(`/user/queue/webrtc.signal`);
-            stompService.unsubscribe(`/topic/room.${roomId}.video.presence`);
-
-            const { peerConnections, removePeerConnection, removeRemoteStream, localStream } = useWebRTCStore.getState();
-            Object.keys(peerConnections).forEach(userId => {
-                removePeerConnection(userId);
-                removeRemoteStream(userId);
-            });
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                useWebRTCStore.setState({ localStream: null, isVideoMuted: false, isAudioMuted: false });
-            }
-        };
-    }, [roomId, currentUser?.id]);
-
     const remoteEntries = Object.entries(remoteStreams);
 
+    const handleStartScreenShare = async () => {
+        if (userRole === 'viewer') {
+            setWarningMessage("Viewers are not allowed to share their screen.");
+            setTimeout(() => setWarningMessage(null), 4000);
+            return;
+        }
+        if (useWebRTCStore.getState().isRemoteScreenSharing) {
+            setWarningMessage("Someone else is already sharing their screen!");
+            setTimeout(() => setWarningMessage(null), 4000);
+            return;
+        }
+        await startScreenShare(() => {
+            stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'SCREEN_SHARE_STOP', userId: currentUser?.id });
+        });
+        stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'SCREEN_SHARE_START', userId: currentUser?.id });
+    };
+
+    const handleStopScreenShare = async () => {
+        await stopScreenShare();
+        stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'SCREEN_SHARE_STOP', userId: currentUser?.id });
+    };
+
     return (
-        <div className="flex flex-col gap-4 h-full">
+        <div className="flex flex-col gap-4 h-full relative">
+            {warningMessage && (
+                <div className="w-full px-3 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-md shadow-sm text-xs font-medium text-center mb-1">
+                    {warningMessage}
+                </div>
+            )}
             {/* Video Grid */}
             <div className={`grid grid-cols-1 gap-3`}>
                 <VideoTile
@@ -280,7 +218,7 @@ export function WebRTCManager({ roomId, users }: WebRTCManagerProps) {
 
                 {/* Screen share — controls only YOUR screen */}
                 <button
-                    onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+                    onClick={isScreenSharing ? handleStopScreenShare : handleStartScreenShare}
                     title={isScreenSharing ? 'Stop sharing screen' : 'Share your screen'}
                     className={`p-3 rounded-full transition-all shadow-md border ${
                         isScreenSharing
