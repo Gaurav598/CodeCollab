@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { motion } from "framer-motion";
+import { motion, HTMLMotionProps } from "framer-motion";
 
-interface OAuthButtonProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
+interface OAuthButtonProps extends HTMLMotionProps<"a"> {
   icon: React.ReactNode;
   children: React.ReactNode;
 }

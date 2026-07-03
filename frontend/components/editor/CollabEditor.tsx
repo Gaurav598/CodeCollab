@@ -233,7 +233,12 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
             type.insert(0, fileEntry.content);
           }
         } catch (err: any) {
-          console.error("Fetch Error during room creation, retrying...", err);
+          if (err?.status === 404) {
+            console.warn(`File ${activeFile.id} not found on server. Closing local tab.`);
+            useWorkspaceStore.getState().closeTab(activeFile.id);
+          } else {
+            console.error("Fetch Error during room initialization:", err);
+          }
         }
       }
       hasLoadedContent.current.add(activeFile.id);

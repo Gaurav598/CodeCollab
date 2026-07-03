@@ -1,10 +1,10 @@
 "use client";
 
-import React, { ButtonHTMLAttributes, useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useRef } from "react";
+import { motion, AnimatePresence, HTMLMotionProps } from "framer-motion";
 import { Loader2 } from "lucide-react";
 
-interface AuthButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface AuthButtonProps extends HTMLMotionProps<"button"> {
   loading?: boolean;
   success?: boolean;
   children: React.ReactNode;

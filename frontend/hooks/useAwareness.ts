@@ -38,15 +38,17 @@ export function useAwareness(provider: WebsocketProvider | null) {
       setUsers(Array.from(uniqueUsers.values()));
     };
 
-    provider.awareness.on('change', (changes: any, origin: any) => {
+    const handleChange = (changes: any, origin: any) => {
       console.log(`[PRESENCE] Awareness 'change' event fired. Origin: ${origin}`, changes);
       updateAwareness();
-    });
+    };
+
+    provider.awareness.on('change', handleChange);
     
     updateAwareness();
 
     return () => {
-      provider.awareness.off('change', updateAwareness);
+      provider.awareness.off('change', handleChange);
     };
   }, [provider]);
 

@@ -159,7 +159,7 @@ export default function RoomPage() {
         const joinRes = await joinRoom(roomCode) as any;
         if (joinRes?.roomId) joinedRoomId = joinRes.roomId;
       } catch (joinErr: any) {
-        console.warn("Auto-join failed or already a member:", joinErr);
+        console.warn("Auto-join failed or already a member:", joinErr.message || joinErr);
       }
       try {
         const data = await getRoom(roomCode);
