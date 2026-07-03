@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { serviceConfig } from "@/services/config";
+import { AuthVisual } from "@/components/auth/AuthVisual";
+import { AuthInput } from "@/components/auth/AuthInput";
+import { PasswordInput } from "@/components/auth/PasswordInput";
+import { AuthButton } from "@/components/auth/AuthButton";
+import { OAuthButton } from "@/components/auth/OAuthButton";
+import { motion } from "framer-motion";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +20,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,11 +28,24 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn(identifier, password);
-      router.push("/dashboard");
+      setSuccess(true);
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 500);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Login failed";
+      let msg = err instanceof Error ? err.message : "Login failed";
+      
+      // Map generic or technical errors to friendly messages
+      if (
+        msg.toLowerCase().includes("login failed") || 
+        msg.toLowerCase().includes("invalid") || 
+        msg.toLowerCase().includes("401") ||
+        msg.toLowerCase().includes("unauthorized")
+      ) {
+        msg = "We couldn't sign you in. Please check your credentials and try again.";
+      }
+      
       setError(msg);
-    } finally {
       setLoading(false);
     }
   }
@@ -33,86 +53,102 @@ export default function LoginPage() {
   const oauthBase = serviceConfig.apiBaseUrl;
 
   return (
-    <main className="auth-page">
-      <div className="auth-card">
-        <div className="auth-logo">
-          <span className="auth-logo-text">CollabCode</span>
+    <main className="min-h-screen w-full bg-background flex">
+      {/* Left Panel: Auth Visual (Hidden on mobile/tablet) */}
+      <div className="hidden lg:block lg:w-1/2 relative">
+        <AuthVisual />
+        {/* Subtle gradient overlay to blend edge */}
+        <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-background to-transparent z-40" />
+      </div>
+
+      {/* Right Panel: Auth Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative overflow-hidden">
+        {/* Mobile Background Glow */}
+        <div className="absolute inset-0 lg:hidden pointer-events-none">
+          <div className="absolute top-0 left-1/4 h-[500px] w-[500px] rounded-full bg-primary/10 blur-[100px]" />
+          <div className="absolute bottom-0 right-1/4 h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-[100px]" />
         </div>
 
-        <h1 className="auth-title">Welcome back</h1>
-        <p className="auth-subtitle">Sign in to continue coding together</p>
-
-        {/* OAuth buttons */}
-        <div className="oauth-group">
-          <a
-            id="btn-oauth-google"
-            href={`${oauthBase}/oauth2/authorization/google`}
-            className="oauth-btn"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </a>
-          <a
-            id="btn-oauth-github"
-            href={`${oauthBase}/oauth2/authorization/github`}
-            className="oauth-btn"
-          >
-            <GitHubIcon />
-            Continue with GitHub
-          </a>
-        </div>
-
-        <div className="auth-divider">
-          <span>or sign in with credentials</span>
-        </div>
-
-        <form id="login-form" onSubmit={handleSubmit} noValidate>
-          {error && (
-            <div id="login-error" className="auth-error" role="alert">
-              {error}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-md relative z-10"
+        >
+          {/* Glassmorphic Card */}
+          <div className="rounded-3xl border border-border/40 bg-card/30 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl">
+            <div className="mb-8 text-center">
+              <Link href="/" className="inline-block transition-transform hover:scale-105">
+                <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-emerald-400">
+                  CollabCode
+                </span>
+              </Link>
+              <h1 className="mt-6 text-3xl font-bold tracking-tight text-foreground">
+                Welcome back
+              </h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Sign in to continue coding together
+              </p>
             </div>
-          )}
 
-          <div className="form-field">
-            <label htmlFor="identifier">Email or username</label>
-            <input
-              id="identifier"
-              type="text"
-              autoComplete="username"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              required
-              placeholder="john@example.com"
-            />
+            {/* OAuth Buttons */}
+            <div className="flex flex-col gap-3">
+              <OAuthButton href={`${oauthBase}/oauth2/authorization/google`} icon={<GoogleIcon />}>
+                Continue with Google
+              </OAuthButton>
+              <OAuthButton href={`${oauthBase}/oauth2/authorization/github`} icon={<GitHubIcon />}>
+                Continue with GitHub
+              </OAuthButton>
+            </div>
+
+            <div className="my-8 flex items-center">
+              <div className="flex-grow border-t border-border/40" />
+              <span className="mx-4 text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
+                Or sign in with credentials
+              </span>
+              <div className="flex-grow border-t border-border/40" />
+            </div>
+
+            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+              <AuthInput
+                id="identifier"
+                label="Email or username"
+                type="text"
+                autoComplete="username"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                required
+                placeholder="you@example.com"
+                error={error?.includes("Email") || error?.includes("user") ? error : null}
+              />
+
+              <PasswordInput
+                id="password"
+                label="Password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="Enter your password"
+                error={error?.includes("Password") || error?.includes("failed") ? error : null}
+                showStrength={false} // Only show strength on Register
+              />
+
+              <div className="mt-2">
+                <AuthButton type="submit" loading={loading} success={success}>
+                  Sign In
+                </AuthButton>
+              </div>
+            </form>
+
+            <div className="mt-8 text-center text-sm text-muted-foreground">
+              Don&apos;t have an account?{" "}
+              <Link href="/register" className="font-semibold text-primary transition-colors hover:text-primary/80">
+                Create one
+              </Link>
+            </div>
           </div>
-
-          <div className="form-field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            id="btn-login-submit"
-            type="submit"
-            className="btn-primary"
-            disabled={loading}
-          >
-            {loading ? "Signing in…" : "Sign In"}
-          </button>
-        </form>
-
-        <p className="auth-footer-link">
-          Don&apos;t have an account?{" "}
-          <Link href="/register">Create one</Link>
-        </p>
+        </motion.div>
       </div>
     </main>
   );

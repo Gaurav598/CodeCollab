@@ -34,3 +34,4 @@ debugger.ts
 playwright-report/
 test-results/
 backend/.gradle/
+backend/bin/
