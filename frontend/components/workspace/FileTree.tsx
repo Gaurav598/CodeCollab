@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { FileEntry, createFile, renameFile, deleteFile } from "@/services/workspaceService";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { useModalStore } from "@/store/modalStore";
-import { MoreVertical, Plus } from "lucide-react";
+import { MoreVertical, Plus, Edit, Trash2, FilePlus } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 
 interface ContextMenuState {
@@ -42,38 +42,44 @@ function ContextMenuPortal({
     <>
       {/* Invisible backdrop — clicking it closes the menu */}
       <div
-        className="fixed inset-0 z-[9998]"
+        className="fixed inset-0 z-[9998] bg-transparent"
         onClick={onClose}
         onContextMenu={(e) => { e.preventDefault(); onClose(); }}
       />
       <div
-        className="fixed z-[9999] bg-card border border-border shadow-lg rounded-md py-1 min-w-[160px] text-sm"
+        className="fixed z-[9999] bg-background/95 backdrop-blur-md border border-border/60 shadow-xl rounded-xl p-1 min-w-[180px] text-sm animate-in fade-in zoom-in-95 duration-200"
         style={{ top: adjusted.y, left: adjusted.x }}
         onClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
         {menu.file ? (
-          <>
+          <div className="flex flex-col gap-0.5">
             <button
-              className="w-full text-left px-4 py-1.5 hover:bg-muted"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-muted text-foreground transition-colors group"
               onClick={() => { onRename(menu.file!); onClose(); }}
             >
-              Rename
+              <Edit size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+              <span className="font-medium">Rename</span>
             </button>
+            <div className="h-px w-full bg-border/50 my-0.5" />
             <button
-              className="w-full text-left px-4 py-1.5 hover:bg-destructive hover:text-destructive-foreground text-red-500"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-destructive/10 text-destructive transition-colors"
               onClick={() => { onDelete(menu.file!); onClose(); }}
             >
-              Delete
+              <Trash2 size={14} className="text-destructive/70 group-hover:text-destructive" />
+              <span className="font-medium">Delete</span>
             </button>
-          </>
+          </div>
         ) : (
-          <button
-            className="w-full text-left px-4 py-1.5 hover:bg-muted"
-            onClick={() => { onCreateFile(); onClose(); }}
-          >
-            New File
-          </button>
+          <div className="flex flex-col gap-0.5">
+            <button
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-muted text-foreground transition-colors group"
+              onClick={() => { onCreateFile(); onClose(); }}
+            >
+              <FilePlus size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+              <span className="font-medium">New File</span>
+            </button>
+          </div>
         )}
       </div>
     </>,

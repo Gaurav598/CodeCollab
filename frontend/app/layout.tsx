@@ -4,6 +4,7 @@ import "./globals.css";
 import { SessionBootstrap } from "@/components/auth/SessionBootstrap";
 import { ThemeProvider } from "@/components/ui/ThemeProvider";
 import { GlobalModals } from "@/components/ui/GlobalModals";
+import { ToastProvider } from "@/components/ui/ToastProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -47,6 +48,7 @@ export default function RootLayout({
           <SessionBootstrap />
           {children}
           <GlobalModals />
+          <ToastProvider />
         </ThemeProvider>
       </body>
     </html>

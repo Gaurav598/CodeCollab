@@ -75,8 +75,8 @@ export function FileIcon({ name, size = 15, className = "" }: { name: string; si
       colorClass = "text-orange-600";
       break;
     default:
-      Icon = FileText;
-      colorClass = "text-slate-400";
+      Icon = FileCode;
+      colorClass = "text-purple-400";
       break;
   }
 

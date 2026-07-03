@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { UserAwareness } from '../../hooks/useAwareness';
-import { Users, ChevronDown, Save, Loader2, Code2 } from 'lucide-react';
+import { Users, ChevronDown, Save, Loader2, Code2, Download } from 'lucide-react';
 import { TabData } from '@/store/workspaceStore';
 
 interface PresencePanelProps {
@@ -88,20 +88,21 @@ export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isS
       {activeFile && (
         <div className="flex items-center space-x-3 mr-4">
           <button
-            onClick={() => onSave?.(true)}
-            className="group flex items-center space-x-1.5 text-[13px] font-medium text-foreground transition-all duration-300 px-3 py-1.5 rounded-md border border-border bg-muted/30 hover:bg-muted/80 shadow-sm hover:shadow"
-          >
-            <Code2 size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
-            <span>Saved Codes</span>
-          </button>
-
-          <button
             onClick={() => onSave?.(false)}
             disabled={isSaving}
-            className="flex items-center space-x-1.5 text-[13px] font-medium text-white transition-all duration-300 px-4 py-1.5 rounded-md bg-gradient-to-r from-blue-600 to-primary hover:from-blue-700 hover:to-blue-600 shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:shadow-none disabled:transform-none"
+            className="flex items-center space-x-1.5 text-[13px] font-medium text-white transition-all duration-300 px-4 py-1.5 rounded-md bg-gradient-to-r from-blue-600 to-primary hover:from-blue-700 hover:to-blue-600 shadow-md hover:shadow-lg hover:-translate-y-1 active:translate-y-0 active:shadow-sm disabled:opacity-50 disabled:shadow-none disabled:transform-none"
           >
             {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             <span>Save Code</span>
+          </button>
+          
+          <button
+            onClick={() => window.dispatchEvent(new Event("collabcode:download-active-file"))}
+            className="flex items-center space-x-1.5 text-[13px] font-medium text-muted-foreground transition-all duration-300 px-4 py-1.5 rounded-md border border-border bg-muted/30 hover:bg-muted hover:text-primary shadow-sm hover:shadow-md hover:-translate-y-1 active:translate-y-0 active:shadow-sm"
+            title="Download File Locally"
+          >
+            <Download size={14} />
+            <span>Download</span>
           </button>
         </div>
       )}

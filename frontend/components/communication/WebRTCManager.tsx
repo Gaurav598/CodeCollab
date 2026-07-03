@@ -99,30 +99,9 @@ export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
     const [warningMessage, setWarningMessage] = React.useState<string | null>(null);
     const remoteVideoStates = useWebRTCStore(state => state.remoteVideoStates);
 
-    // Initialize local stream just to get permission, then stop it immediately
+    // Initialize an empty local stream so the VideoTile and PeerConnections have a reference
     useEffect(() => {
-        let isMounted = true;
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then(stream => {
-                // Immediately stop hardware to turn off lights, just wanted permission
-                stream.getTracks().forEach(track => {
-                    track.enabled = false;
-                    track.stop();
-                });
-                if (isMounted) {
-                    setLocalStream(new MediaStream());
-                }
-            })
-            .catch(err => {
-                console.error("Could not get media", err);
-                if (isMounted) {
-                    setLocalStream(new MediaStream());
-                }
-            });
-
-        return () => {
-            isMounted = false;
-        };
+        setLocalStream(new MediaStream());
     }, [setLocalStream]);
 
     // Broadcast local mute state whenever it changes

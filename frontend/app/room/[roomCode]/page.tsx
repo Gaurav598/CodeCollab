@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/workspace/Sidebar";
 import { Tabs } from "@/components/workspace/Tabs";
-import { Save, Lock } from "lucide-react";
+import { Save, Lock, LayoutDashboard, Code2, LogOut, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const CollabEditor = dynamic(
@@ -12,11 +12,11 @@ const CollabEditor = dynamic(
   { ssr: false }
 );
 import { CommandPalette } from "@/components/workspace/CommandPalette";
-import { NotificationBell } from "@/components/communication/NotificationBell";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { getRoom, joinRoom, FileEntry, Room } from "@/services/workspaceService";
+import { getRoom, joinRoom, FileEntry, Room, deleteRoom } from "@/services/workspaceService";
 import { useAuthStore } from "@/store/authStore";
 import { useWorkspaceStore } from "@/store/workspaceStore";
+import { useModalStore } from "@/store/modalStore";
 import { useChatStore } from "@/store/chatStore";
 import { stompService } from "@/services/stompClient";
 
@@ -112,7 +112,7 @@ function PendingScreen({ roomId, userId, onApproved }: { roomId: string; userId:
 export default function RoomPage() {
   const { roomCode } = useParams<{ roomCode: string }>();
   const router = useRouter();
-  const { user, isLoading } = useAuthStore();
+  const { user, isLoading, clearAuth } = useAuthStore();
   const closeAllTabs = useWorkspaceStore(state => state.closeAllTabs);
   const [room, setRoom] = useState<Room | null>(null);
   const [files, setFiles] = useState<FileEntry[]>([]);
@@ -273,15 +273,52 @@ export default function RoomPage() {
           <Tabs />
           <div className="flex items-center gap-2">
             <button
-              onClick={() => window.dispatchEvent(new Event("collabcode:download-active-file"))}
-              className="hidden md:flex items-center gap-1.5 rounded border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              title="Download File Locally"
+              onClick={() => router.push("/dashboard")}
+              className="hidden md:flex items-center gap-1.5 rounded border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-primary transition-all duration-300 hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:shadow-sm"
+              title="Go to Dashboard"
             >
-              <Save size={14} />
-              Download
+              <LayoutDashboard size={14} />
+              Dashboard
             </button>
-            <NotificationBell />
+            <button
+              onClick={() => window.dispatchEvent(new Event("collabcode:open-saved-codes"))}
+              className="hidden md:flex items-center gap-1.5 rounded border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-primary transition-all duration-300 hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:shadow-sm"
+              title="Saved Codes"
+            >
+              <Code2 size={14} />
+              Saved Codes
+            </button>
             <ThemeToggle />
+            <div className="group flex items-center relative overflow-hidden transition-all duration-300 w-[32px] hover:w-[90px] bg-muted/30 rounded-md border border-border ml-1">
+              <button 
+                onClick={() => { clearAuth(); router.push('/login'); }}
+                className="flex items-center justify-start w-full h-8 px-2 gap-2 text-red-500 hover:text-red-400 transition-colors"
+              >
+                <LogOut size={16} className="shrink-0" />
+                <span className="text-xs font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">Logout</span>
+              </button>
+            </div>
+            {isOwner && (
+              <div className="group flex items-center relative overflow-hidden transition-all duration-300 w-[32px] hover:w-[125px] bg-muted/30 rounded-md border border-border ml-1">
+                <button 
+                  onClick={async () => {
+                    const confirmed = await useModalStore.getState().showConfirm("Delete Room", "Permanently delete this room? This action cannot be undone.");
+                    if (confirmed) {
+                      try {
+                        await deleteRoom(room.roomCode);
+                        router.push("/dashboard");
+                      } catch {
+                        useModalStore.getState().showAlert("Error", "Failed to delete room.");
+                      }
+                    }
+                  }}
+                  className="flex items-center justify-start w-full h-8 px-2 gap-2 text-red-500 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={16} className="shrink-0" />
+                  <span className="text-xs font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">Delete Room</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <CollabEditor roomId={room.id} userRole={userRole} />

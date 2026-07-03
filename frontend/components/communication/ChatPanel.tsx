@@ -13,6 +13,7 @@ export function ChatPanel({ roomId, userRole, onClose }: ChatPanelProps) {
     const { messagesByRoom, sendMessage, deleteMessage } = useChatStore();
     const currentUser = useAuthStore(state => state.user);
     const [inputValue, setInputValue] = useState('');
+    const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const messages = messagesByRoom[roomId] || [];
@@ -28,6 +29,9 @@ export function ChatPanel({ roomId, userRole, onClose }: ChatPanelProps) {
     const handleSend = (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!inputValue.trim()) return;
+
+        setIsSending(true);
+        setTimeout(() => setIsSending(false), 150);
 
         sendMessage(roomId, inputValue.trim());
         setInputValue('');
@@ -145,7 +149,7 @@ export function ChatPanel({ roomId, userRole, onClose }: ChatPanelProps) {
                 />
                 <button
                     type="submit"
-                    className="flex items-center justify-center bg-primary hover:bg-primary/90 text-primary-foreground w-9 h-9 rounded-md transition-colors shrink-0 mb-[1px]"
+                    className={`flex items-center justify-center bg-primary hover:bg-primary/90 text-primary-foreground w-9 h-9 rounded-md transition-all duration-150 shrink-0 mb-[1px] shadow-sm hover:shadow-md ${isSending ? 'scale-90 shadow-none -translate-y-0' : 'hover:-translate-y-0.5'}`}
                 >
                     <Send size={15} />
                 </button>

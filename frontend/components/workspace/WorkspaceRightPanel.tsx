@@ -25,7 +25,7 @@ export function WorkspaceRightPanel(props: WorkspaceRightPanelProps) {
 
   return (
     <div className="hidden h-full w-[300px] min-w-[280px] max-w-[360px] border-l border-border bg-background xl:flex xl:flex-col">
-      <div className="grid h-11 grid-cols-2 border-b border-border bg-muted/20">
+      <div className="grid h-11 grid-cols-2 border-b border-border bg-background">
         <PanelButton active={tab === "chat"} label="Chat" icon={<MessageSquare size={15} />} onClick={() => setTab("chat")} />
         <PanelButton active={tab === "video"} label="Video" icon={<Video size={15} />} onClick={() => setTab("video")} />
       </div>

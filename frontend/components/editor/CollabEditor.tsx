@@ -430,8 +430,13 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   }, [doc, provider]);
 
   useEffect(() => {
+    const handleOpenSavedCodes = () => setShowSavedCodes(true);
     window.addEventListener("collabcode:download-active-file", handleDownload);
-    return () => window.removeEventListener("collabcode:download-active-file", handleDownload);
+    window.addEventListener("collabcode:open-saved-codes", handleOpenSavedCodes);
+    return () => {
+      window.removeEventListener("collabcode:download-active-file", handleDownload);
+      window.removeEventListener("collabcode:open-saved-codes", handleOpenSavedCodes);
+    };
   }, [handleDownload]);
 
   if (!activeFile) {
