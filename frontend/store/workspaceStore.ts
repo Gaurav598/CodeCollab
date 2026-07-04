@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { RoomMember } from '@/services/workspaceService';
 
 export interface TabData {
   id: string;        // File entry id
@@ -12,6 +13,7 @@ interface WorkspaceState {
   activeTabId: string | null;
   expandedFolders: string[]; // paths of folders that are expanded in the file tree
   activeRoomCode: string | null;
+  roomMembers: RoomMember[];
 
   // Actions
   openTab: (tab: TabData) => void;
@@ -19,6 +21,7 @@ interface WorkspaceState {
   setActiveTab: (tabId: string) => void;
   toggleFolder: (folderPath: string) => void;
   setActiveRoomCode: (roomCode: string) => void;
+  setRoomMembers: (members: RoomMember[]) => void;
   updateTabPath: (tabId: string, path: string) => void;
   updateTabLanguage: (tabId: string, language: string) => void;
   closeAllTabs: () => void;
@@ -31,6 +34,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       activeTabId: null,
       expandedFolders: [],
       activeRoomCode: null,
+      roomMembers: [],
 
       openTab: (tab) => {
         const { openTabs } = get();
@@ -64,6 +68,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       },
 
       setActiveRoomCode: (roomCode) => set({ activeRoomCode: roomCode }),
+      
+      setRoomMembers: (members) => set({ roomMembers: members }),
 
       updateTabPath: (tabId, path) => {
         const { openTabs } = get();

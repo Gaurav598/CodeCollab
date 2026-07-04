@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.*;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,8 +65,14 @@ public class RoomService {
         room.updateLastActive();
         roomRepository.save(room);
         roomAccessService.requireMember(room.getId(), requestingUserId);
+        
+        RoomMember member = roomMemberRepository.findByRoomIdAndUserId(room.getId(), requestingUserId)
+                .orElseThrow(() -> ApiException.forbidden("NOT_A_MEMBER", "User is not a member of this room"));
+                
         User owner = userRepository.findById(room.getOwnerId()).orElse(null);
-        return roomDto(room, owner);
+        Map<String, Object> dto = new HashMap<>(roomDto(room, owner));
+        dto.put("role", member.getRole().name());
+        return dto;
     }
 
     @Transactional(readOnly = true)
@@ -130,15 +137,17 @@ public class RoomService {
                 .orElseThrow(() -> ApiException.notFound("USER_NOT_FOUND", "User not found"));
 
         if (roomMemberRepository.existsByRoomIdAndUserId(room.getId(), userId)) {
-            return Map.of("message", "Already a member");
+            return Map.of("message", "Already a member", "roomId", room.getId().toString());
         }
         roomMemberRepository.save(RoomMember.create(room.getId(), userId, MemberRole.pending));
         
-        // Notify owner
+        // Notify owner (legacy for toasts)
         messagingTemplate.convertAndSend(
             "/topic/room." + room.getId() + ".approval",
             Map.of("event", "user.join_request", "userId", userId.toString(), "username", user.getUsername())
         );
+
+        broadcastMembershipUpdated(room.getId(), userId, MemberRole.pending, "PENDING");
 
         return Map.of("message", "Join request sent", "roomCode", roomCode, "role", "pending", "roomId", room.getId().toString());
     }
@@ -162,6 +171,8 @@ public class RoomService {
             "/topic/room." + room.getId() + ".approval",
             Map.of("event", "user.approved", "userId", targetUserId.toString(), "role", newRole.name())
         );
+        
+        broadcastMembershipUpdated(room.getId(), targetUserId, newRole, "ACTIVE");
         
         return Map.of("userId", targetUserId, "role", newRole.name());
     }
@@ -187,12 +198,20 @@ public class RoomService {
         }
         RoomMember member = roomMemberRepository.findByRoomIdAndUserId(room.getId(), targetUserId)
                 .orElseThrow(() -> ApiException.notFound("MEMBER_NOT_FOUND", "User is not a member of this room"));
-        MemberRole newRole = MemberRole.valueOf(roleStr);
+        MemberRole newRole;
+        try {
+            newRole = MemberRole.valueOf(roleStr.toLowerCase());
+        } catch (IllegalArgumentException e) {
+            throw ApiException.badRequest("INVALID_ROLE", "Invalid role: " + roleStr);
+        }
         if (newRole.isOwner()) {
             throw ApiException.badRequest("OWNER_TRANSFER_UNSUPPORTED", "Ownership transfer is not supported by this endpoint");
         }
         member.setRole(newRole);
         roomMemberRepository.save(member);
+        
+        broadcastMembershipUpdated(room.getId(), targetUserId, newRole, "ACTIVE");
+        
         return Map.of("userId", targetUserId, "role", newRole.name());
     }
 
@@ -205,6 +224,8 @@ public class RoomService {
             throw ApiException.badRequest("OWNER_CANNOT_BE_REMOVED", "Room owner cannot be removed");
         }
         roomMemberRepository.deleteByRoomIdAndUserId(room.getId(), targetUserId);
+        
+        broadcastMembershipUpdated(room.getId(), targetUserId, null, "REMOVED");
     }
 
     
@@ -248,6 +269,22 @@ public class RoomService {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private void broadcastMembershipUpdated(UUID roomId, UUID targetUserId, MemberRole role, String status) {
+        messagingTemplate.convertAndSend(
+            "/topic/room." + roomId + ".workspace",
+            Map.of(
+                "event", "MEMBERSHIP_UPDATED",
+                "roomId", roomId.toString(),
+                "memberId", targetUserId.toString(),
+                "userId", targetUserId.toString(),
+                "role", role != null ? role.name() : "",
+                "membershipStatus", status,
+                "version", System.currentTimeMillis(),
+                "timestamp", Instant.now().toString()
+            )
+        );
+    }
 
     private Room findByCode(String roomCode) {
         return roomRepository.findByRoomCode(roomCode)

@@ -86,7 +86,9 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
             localStream.getTracks().forEach(track => {
                 pc.addTrack(track, localStream);
             });
-        } else {
+        } else if (isInitiator) {
+            // Only force transceivers if we are the initiator. 
+            // If answerer, setRemoteDescription will create them from the offer.
             const emptyStream = localStream || new MediaStream();
             pc.addTransceiver('audio', { direction: 'sendrecv', streams: [emptyStream] });
             pc.addTransceiver('video', { direction: 'sendrecv', streams: [emptyStream] });
@@ -94,18 +96,24 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
 
         // Handle remote tracks — detect if it's a screen share (display surface)
         pc.ontrack = (event) => {
-            if (event.streams && event.streams[0]) {
-                const stream = event.streams[0];
-                const videoTrack = stream.getVideoTracks()[0];
-                // Heuristic: if the video track label contains 'screen' or 'display' it's a screen share
-                const isScreen = videoTrack?.label?.toLowerCase().includes('screen') ||
-                                 videoTrack?.label?.toLowerCase().includes('display') ||
-                                 (videoTrack?.getSettings?.()?.displaySurface != null);
-                if (isScreen) {
-                    set({ isRemoteScreenSharing: true, remoteScreenStream: stream });
-                } else {
-                    addRemoteStream(targetUserId, stream);
-                }
+            let stream: MediaStream;
+            if (event.streams && event.streams.length > 0) {
+                stream = event.streams[0];
+            } else {
+                // Fallback if the remote peer didn't associate a stream
+                stream = get().remoteStreams[targetUserId] || new MediaStream();
+                stream.addTrack(event.track);
+            }
+
+            const videoTrack = stream.getVideoTracks()[0];
+            // Heuristic: if the video track label contains 'screen' or 'display' it's a screen share
+            const isScreen = videoTrack?.label?.toLowerCase().includes('screen') ||
+                             videoTrack?.label?.toLowerCase().includes('display') ||
+                             (videoTrack?.getSettings && videoTrack.getSettings().displaySurface != null);
+            if (isScreen) {
+                set({ isRemoteScreenSharing: true, remoteScreenStream: stream });
+            } else {
+                get().addRemoteStream(targetUserId, stream);
             }
         };
 
@@ -162,7 +170,7 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 });
                 set({ isAudioMuted: false, localStream: localStream || newStream });
             } catch (err) {
-                console.error("Failed to enable audio", err);
+                console.warn("Failed to enable audio", err);
                 setTimeout(() => {
                     useModalStore.getState().showAlert("Microphone Error", "Failed to access microphone. Please check your browser permissions.");
                 }, 0);
@@ -204,7 +212,7 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 });
                 set({ isVideoMuted: false, localStream: localStream || newStream });
             } catch (err) {
-                console.error("Failed to enable video", err);
+                console.warn("Failed to enable video", err);
                 setTimeout(() => {
                     useModalStore.getState().showAlert("Camera Error", "Failed to access camera. Please check your browser permissions.");
                 }, 0);
@@ -250,7 +258,7 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
 
             set({ isScreenSharing: true, localStream: screenStream });
         } catch (err) {
-            console.error('Failed to start screen share', err);
+            console.warn('Failed to start screen share', err);
         }
     },
 

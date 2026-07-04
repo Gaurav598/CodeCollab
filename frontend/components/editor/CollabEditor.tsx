@@ -67,7 +67,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
       await renameFile(activeFile.id, activeFile.path, language);
       updateTabLanguage(activeFile.id, language);
     } catch (error) {
-      console.error('Failed to change language:', error);
+      console.warn('Failed to change language:', error);
     }
   }, [activeFile, updateTabLanguage]);
 
@@ -161,11 +161,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
 
     // Observer registration for Stage 2
     const observer = (event: Y.YTextEvent, transaction: Y.Transaction) => {
-      if (transaction.local) {
-        console.log(`[STAGE 2] LOCAL UPDATE on ${activeFile.id}`);
-      } else {
-        console.log(`[STAGE 2] REMOTE UPDATE on ${activeFile.id}`);
-      }
+      if (!transaction.local) return; // ONLY AUTO-SAVE LOCAL CHANGES!
 
       // Debounced Auto-Save (Fixes code loss on reload)
       if (userRole === "viewer") return; // Viewers do not have permission to save
@@ -175,7 +171,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
         try {
           await updateFileContent(activeFile.id, type.toString());
         } catch (e) {
-          console.error("Auto-save failed", e);
+          console.warn("Auto-save failed", e);
         }
       }, 1000);
     };
@@ -237,7 +233,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
             console.warn(`File ${activeFile.id} not found on server. Closing local tab.`);
             useWorkspaceStore.getState().closeTab(activeFile.id);
           } else {
-            console.error("Fetch Error during room initialization:", err);
+            console.warn("Fetch Error during room initialization:", err);
           }
         }
       }
@@ -467,7 +463,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
         </div>
       )}
 
-      <WebRTCConnectionHandler roomId={roomId} />
+      <WebRTCConnectionHandler roomId={roomId} userRole={userRole} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <PresencePanel 
@@ -533,7 +529,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
                   {isLocalScreenSharing && localStream ? (
                     <div className="w-full h-full relative flex flex-col items-center justify-center min-h-0">
                       <video 
-                        ref={(el) => { if (el) el.srcObject = localStream; }}
+                        ref={(el) => { if (el && el.srcObject !== localStream) el.srcObject = localStream; }}
                         autoPlay
                         playsInline
                         muted
@@ -549,7 +545,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
                       <video
                         autoPlay
                         playsInline
-                        ref={el => { if (el) el.srcObject = remoteScreenStream; }}
+                        ref={el => { if (el && el.srcObject !== remoteScreenStream) el.srcObject = remoteScreenStream; }}
                         className="max-w-full max-h-full rounded-lg shadow-xl object-contain bg-black border border-border"
                       />
                     </div>

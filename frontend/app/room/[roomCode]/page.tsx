@@ -19,6 +19,7 @@ import { useWorkspaceStore } from "@/store/workspaceStore";
 import { useModalStore } from "@/store/modalStore";
 import { useChatStore } from "@/store/chatStore";
 import { stompService } from "@/services/stompClient";
+import { useWebRTCStore } from "@/store/webrtcStore";
 
 const CS_QUOTES = [
   "Talk is cheap. Show me the code. — Linus Torvalds",
@@ -115,6 +116,11 @@ export default function RoomPage() {
   const { user, isLoading, clearAuth } = useAuthStore();
   const closeAllTabs = useWorkspaceStore(state => state.closeAllTabs);
   const [room, setRoom] = useState<Room | null>(null);
+  const [membership, setMembership] = useState({
+    role: "editor",
+    status: "ACTIVE",
+    version: 0
+  });
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -130,14 +136,74 @@ export default function RoomPage() {
 
   // STOMP Presence and Chat subscription bound to Room lifecycle
   useEffect(() => {
-    if (room?.id) {
+    if (room?.id && membership.status !== "REMOVED") {
       const { subscribeToRoom, unsubscribeFromRoom } = useChatStore.getState();
       subscribeToRoom(room.id);
       return () => {
         unsubscribeFromRoom(room.id);
       };
     }
-  }, [room?.id]);
+  }, [room?.id, membership.status]);
+
+  // STOMP Membership updates subscription
+  useEffect(() => {
+    if (!room?.id || !user?.id) return;
+    const dest = `/topic/room.${room.id}.workspace`;
+    const callback = (msg: any) => {
+      try {
+        const body = JSON.parse(msg.body);
+        if (body.event === "MEMBERSHIP_UPDATED") {
+          const incomingVersion = body.version || 0;
+          
+          if (body.userId === user.id) {
+            setMembership(prev => {
+              if (incomingVersion < prev.version) return prev;
+              return {
+                role: body.role || "viewer",
+                status: body.membershipStatus,
+                version: incomingVersion
+              };
+            });
+          } else if (body.membershipStatus === "REMOVED") {
+            // Another user was removed
+            const { removePeerConnection, removeRemoteStream, setRemoteScreenShare } = useWebRTCStore.getState();
+            removePeerConnection(body.userId);
+            removeRemoteStream(body.userId);
+            setRemoteScreenShare(body.userId, false);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse workspace STOMP message", e);
+      }
+    };
+    
+    stompService.subscribe(dest, callback);
+    return () => stompService.unsubscribe(dest, callback);
+  }, [room?.id, user?.id]);
+
+  useEffect(() => {
+    if (membership.status === "REMOVED") {
+      // Deterministic cleanup
+      const webrtc = useWebRTCStore.getState();
+      webrtc.stopScreenShare();
+      if (!webrtc.isAudioMuted) webrtc.toggleAudio();
+      if (!webrtc.isVideoMuted) webrtc.toggleVideo();
+      
+      const { peerConnections, removePeerConnection, removeRemoteStream } = webrtc;
+      Object.keys(peerConnections).forEach(userId => {
+        removePeerConnection(userId);
+        removeRemoteStream(userId);
+      });
+      
+      if (room?.id) {
+        stompService.unsubscribe(`/user/queue/webrtc.signal`);
+        stompService.unsubscribe(`/topic/room.${room.id}.video.presence`);
+      }
+      
+      closeAllTabs();
+      router.push("/dashboard");
+    }
+  }, [membership.status, router, room?.id, closeAllTabs]);
 
   const hasFetched = useRef(false);
 
@@ -164,9 +230,13 @@ export default function RoomPage() {
       try {
         const data = await getRoom(roomCode);
         setRoom(data);
+        const isOwner = user?.id === data.ownerId;
+        const initialRole = isOwner ? "owner" : (data.role ?? "editor");
+        setMembership(prev => ({ ...prev, role: initialRole }));
       } catch (err: any) {
         if (err.message === "Waiting for room owner approval" && joinedRoomId) {
           setRoom({ id: joinedRoomId, roomCode, ownerId: "", name: "Pending Room", createdAt: "", role: "pending" });
+          setMembership(prev => ({ ...prev, role: "pending", status: "PENDING" }));
         } else {
           setError(err.message || "Failed to load room");
         }
@@ -255,13 +325,13 @@ export default function RoomPage() {
     );
   }
 
-  // userRole from API response; fall back to editor for non-members
+  const userRole = membership.role;
   const isOwner = user?.id === room.ownerId;
-  const userRole = isOwner ? "owner" : (room.role ?? "editor");
 
   if (userRole === "pending") {
     return <PendingScreen roomId={room.id} userId={user!.id} onApproved={(newRole) => {
       setRoom({ ...room, role: newRole });
+      setMembership(prev => ({ ...prev, role: newRole, status: "ACTIVE", version: Date.now() }));
     }} />;
   }
 

@@ -4,7 +4,7 @@ import { serviceConfig } from './config';
 
 class StompService {
     private client: Client | null = null;
-    private activeSubscriptions: Map<string, { callback: (msg: IMessage) => void; subscription: any }> = new Map();
+    private activeSubscriptions: Map<string, { callbacks: Set<(msg: IMessage) => void>; subscription: any }> = new Map();
     private pendingSubscriptions: Array<{destination: string, callback: (msg: IMessage) => void}> = [];
     private pendingMessages: Array<{destination: string, body: any}> = [];
 
@@ -38,7 +38,7 @@ class StompService {
                 this.activeSubscriptions.clear();
                 for (const [destination, item] of currentSubs) {
                     console.log(`[STOMP] Re-subscribing to ${destination}`);
-                    this.subscribe(destination, item.callback);
+                    item.callbacks.forEach(cb => this.subscribe(destination, cb));
                 }
 
                 // Process pending subscriptions
@@ -78,21 +78,32 @@ class StompService {
     public subscribe(destination: string, callback: (message: IMessage) => void) {
         if (!this.client || !this.client.connected) {
             console.warn(`[STOMP] Cannot subscribe to ${destination} right now. Queuing subscription.`);
-            if (!this.pendingSubscriptions.some(s => s.destination === destination)) {
+            if (!this.pendingSubscriptions.some(s => s.destination === destination && s.callback === callback)) {
                 this.pendingSubscriptions.push({ destination, callback });
             }
-            this.activeSubscriptions.set(destination, { callback, subscription: null });
+            if (!this.activeSubscriptions.has(destination)) {
+                this.activeSubscriptions.set(destination, { callbacks: new Set([callback]), subscription: null });
+            } else {
+                this.activeSubscriptions.get(destination)!.callbacks.add(callback);
+            }
             return null;
         }
 
         const existing = this.activeSubscriptions.get(destination);
         if (existing && existing.subscription) {
+            existing.callbacks.add(callback);
             return existing.subscription;
         }
 
         try {
-            const sub = this.client.subscribe(destination, callback);
-            this.activeSubscriptions.set(destination, { callback, subscription: sub });
+            const callbacks = existing ? existing.callbacks.add(callback) : new Set([callback]);
+            const sub = this.client.subscribe(destination, (msg) => {
+                const current = this.activeSubscriptions.get(destination);
+                if (current) {
+                    current.callbacks.forEach(cb => cb(msg));
+                }
+            });
+            this.activeSubscriptions.set(destination, { callbacks, subscription: sub });
             return sub;
         } catch (err) {
             console.error(`[STOMP] Failed to subscribe to ${destination}`, err);
@@ -100,12 +111,20 @@ class StompService {
         }
     }
 
-    public unsubscribe(destination: string) {
-        // Also remove from pending if present
-        this.pendingSubscriptions = this.pendingSubscriptions.filter(s => s.destination !== destination);
+    public unsubscribe(destination: string, callback?: (message: IMessage) => void) {
+        if (callback) {
+            this.pendingSubscriptions = this.pendingSubscriptions.filter(s => !(s.destination === destination && s.callback === callback));
+        } else {
+            this.pendingSubscriptions = this.pendingSubscriptions.filter(s => s.destination !== destination);
+        }
 
         const existing = this.activeSubscriptions.get(destination);
         if (existing) {
+            if (callback) {
+                existing.callbacks.delete(callback);
+                if (existing.callbacks.size > 0) return; // Still have listeners
+            }
+            
             if (existing.subscription) {
                 try {
                     existing.subscription.unsubscribe();

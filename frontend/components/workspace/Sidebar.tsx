@@ -35,15 +35,24 @@ export function Sidebar({
 
     const destination = `/topic/room.${roomId}.workspace`;
 
-    const subscription = stompService.subscribe(destination, () => {
-      // Only refresh after initial load to avoid redundant calls
-      if (initialLoadDone.current) {
-        fetchFiles();
+    const callback = (msg: any) => {
+      try {
+        const body = JSON.parse(msg.body);
+        if (body.event === "file.changed") {
+          // Only refresh after initial load to avoid redundant calls
+          if (initialLoadDone.current) {
+            fetchFiles();
+          }
+        }
+      } catch (e) {
+        console.error("[Sidebar] Failed to parse STOMP message", e);
       }
-    });
+    };
+
+    stompService.subscribe(destination, callback);
 
     return () => {
-      stompService.unsubscribe(destination);
+      stompService.unsubscribe(destination, callback);
     };
   }, [roomId]);
 
@@ -87,7 +96,7 @@ export function Sidebar({
           </div>
         </div>
 
-        <RoomSettings roomCode={roomCode} userRole={userRole} />
+        <RoomSettings roomCode={roomCode} roomId={roomId} userRole={userRole} />
 
         <div className="flex-1 overflow-y-auto py-2">
           {loading ? (

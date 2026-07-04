@@ -4,8 +4,9 @@ import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useWebRTCStore } from '@/store/webrtcStore';
 import { stompService } from '@/services/stompClient';
+import { canUseMedia } from '@/utils/permissions';
 
-export function WebRTCConnectionHandler({ roomId }: { roomId: string }) {
+export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomId: string, userRole?: string }) {
     const currentUser = useAuthStore(state => state.user);
     const pendingCandidates = useRef<Record<string, any[]>>({});
 

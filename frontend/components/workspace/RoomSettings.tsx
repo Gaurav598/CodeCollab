@@ -5,10 +5,13 @@ import { RoomMember, getRoomMembers, approveMember, patchMember, removeMember } 
 import { Trash2, ChevronRight, Users, Copy, Code2, Link as LinkIcon } from "lucide-react";
 import { useModalStore } from "@/store/modalStore";
 import { useToastStore } from "@/store/toastStore";
+import { useWorkspaceStore } from "@/store/workspaceStore";
 import { motion, AnimatePresence } from "framer-motion";
+import { stompService } from "@/services/stompClient";
 
-export function RoomSettings({ roomCode, userRole }: { roomCode: string, userRole: string }) {
+export function RoomSettings({ roomCode, roomId, userRole }: { roomCode: string, roomId?: string, userRole: string }) {
   const [members, setMembers] = useState<RoomMember[]>([]);
+  const setWorkspaceMembers = useWorkspaceStore(state => state.setRoomMembers);
   const [loading, setLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
   const [roomUrl, setRoomUrl] = useState("");
@@ -21,12 +24,50 @@ export function RoomSettings({ roomCode, userRole }: { roomCode: string, userRol
     fetchMembers();
   }, [roomCode]);
 
+  useEffect(() => {
+    setWorkspaceMembers(members);
+  }, [members, setWorkspaceMembers]);
+
+  useEffect(() => {
+    if (!roomId) return;
+    const dest = `/topic/room.${roomId}.workspace`;
+    const callback = (msg: any) => {
+      try {
+        const body = JSON.parse(msg.body);
+        if (body.event === "MEMBERSHIP_UPDATED" || body.event === "MEMBER_REMOVED") {
+           // We can optimistically update the state or just fetch.
+           if (body.event === "MEMBERSHIP_UPDATED" && body.membershipStatus !== "REMOVED") {
+               setMembers(prev => {
+                   const exists = prev.find(m => m.userId === body.userId);
+                   if (exists) {
+                       return prev.map(m => m.userId === body.userId ? { ...m, role: body.role } : m);
+                   } else {
+                       // New member or pending, fallback to fetch for simplicity (we don't have username in the STOMP payload right now)
+                       fetchMembers();
+                       return prev;
+                   }
+               });
+           } else if (body.event === "MEMBER_REMOVED" || (body.event === "MEMBERSHIP_UPDATED" && body.membershipStatus === "REMOVED")) {
+               setMembers(prev => prev.filter(m => m.userId !== body.userId));
+           }
+        }
+      } catch (e) {
+        console.error("Failed to parse STOMP message in RoomSettings", e);
+      }
+    };
+    
+    stompService.subscribe(dest, callback);
+    return () => stompService.unsubscribe(dest, callback);
+  }, [roomId]);
+
+
+
   async function fetchMembers() {
     try {
       const data = await getRoomMembers(roomCode);
       setMembers(data);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error("Failed to fetch members", error);
     } finally {
       setLoading(false);
     }
