@@ -39,9 +39,13 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   const users = useAwareness(provider);
   const isRemoteScreenSharing = useWebRTCStore(state => state.isRemoteScreenSharing);
   const isLocalScreenSharing = useWebRTCStore(state => state.isScreenSharing);
-  const remoteScreenStream = useWebRTCStore(state => state.remoteScreenStream);
-  const localStream = useWebRTCStore(state => state.localStream);
+  const remoteScreenStreams = useWebRTCStore(state => state.remoteScreenStreams);
+  const remoteScreenShareIntents = useWebRTCStore(state => state.remoteScreenShareIntents);
+  const localScreenStream = useWebRTCStore(state => state.localScreenStream);
   const isScreenSplit = isRemoteScreenSharing || isLocalScreenSharing;
+
+  const activeSharingUserId = Object.keys(remoteScreenShareIntents).find(id => remoteScreenShareIntents[id]);
+  const activeRemoteScreenStream = activeSharingUserId ? remoteScreenStreams[activeSharingUserId] : null;
 
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const editorDisposablesRef = useRef<monaco.IDisposable[]>([]);
@@ -526,10 +530,10 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
                   )}
                 </div>
                 <div className="flex-1 flex min-h-0 min-w-0 items-center justify-center p-3 bg-muted/20 overflow-hidden relative">
-                  {isLocalScreenSharing && localStream ? (
+                  {isLocalScreenSharing && localScreenStream ? (
                     <div className="w-full h-full relative flex flex-col items-center justify-center min-h-0">
                       <video 
-                        ref={(el) => { if (el && el.srcObject !== localStream) el.srcObject = localStream; }}
+                        ref={(el) => { if (el && el.srcObject !== localScreenStream) el.srcObject = localScreenStream; }}
                         autoPlay
                         playsInline
                         muted
@@ -540,12 +544,12 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
                          <span className="text-xs font-medium whitespace-nowrap">Your screen is visible</span>
                       </div>
                     </div>
-                  ) : remoteScreenStream ? (
+                  ) : activeRemoteScreenStream ? (
                     <div className="w-full h-full relative flex flex-col items-center justify-center min-h-0">
                       <video
                         autoPlay
                         playsInline
-                        ref={el => { if (el && el.srcObject !== remoteScreenStream) el.srcObject = remoteScreenStream; }}
+                        ref={el => { if (el && el.srcObject !== activeRemoteScreenStream) el.srcObject = activeRemoteScreenStream; }}
                         className="max-w-full max-h-full rounded-lg shadow-xl object-contain bg-black border border-border"
                       />
                     </div>

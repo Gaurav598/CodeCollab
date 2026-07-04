@@ -7,11 +7,13 @@ interface WebRTCState {
     remoteStreams: Record<string, MediaStream>; // keyed by userId
     peerConnections: Record<string, RTCPeerConnection>; // keyed by userId
     remoteVideoStates: Record<string, boolean>;
+    remoteAudioStates: Record<string, boolean>;
     isAudioMuted: boolean;
     isVideoMuted: boolean;
     isScreenSharing: boolean;
     isRemoteScreenSharing: boolean;
-    remoteScreenStream: MediaStream | null;
+    remoteScreenStreams: Record<string, MediaStream>;
+    localScreenStream: MediaStream | null;
     setLocalStream: (stream: MediaStream) => void;
     addRemoteStream: (userId: string, stream: MediaStream) => void;
     removeRemoteStream: (userId: string) => void;
@@ -23,6 +25,7 @@ interface WebRTCState {
     addPeerConnection: (userId: string, pc: RTCPeerConnection) => void;
     removePeerConnection: (userId: string) => void;
     setRemoteVideoState: (userId: string, isMuted: boolean) => void;
+    setRemoteAudioState: (userId: string, isMuted: boolean) => void;
     createPeerConnection: (targetUserId: string, isInitiator: boolean, roomId: string) => RTCPeerConnection;
     remoteScreenShareIntents: Record<string, boolean>;
 }
@@ -36,27 +39,29 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
     remoteStreams: {},
     peerConnections: {},
     remoteVideoStates: {},
+    remoteAudioStates: {},
     isAudioMuted: true,
     isVideoMuted: true,
     isScreenSharing: false,
     isRemoteScreenSharing: false,
-    remoteScreenStream: null,
+    remoteScreenStreams: {},
+    localScreenStream: null,
     remoteScreenShareIntents: {},
 
     setLocalStream: (stream) => set({ localStream: stream }),
     
     addRemoteStream: (userId, stream) => set((state) => {
-        const isScreenIntended = state.remoteScreenShareIntents[userId];
         return {
-            remoteStreams: { ...state.remoteStreams, [userId]: stream },
-            ...(isScreenIntended ? { isRemoteScreenSharing: true, remoteScreenStream: stream } : {})
+            remoteStreams: { ...state.remoteStreams, [userId]: stream }
         };
     }),
 
     removeRemoteStream: (userId) => set((state) => {
         const newStreams = { ...state.remoteStreams };
         delete newStreams[userId];
-        return { remoteStreams: newStreams };
+        const newScreenStreams = { ...state.remoteScreenStreams };
+        delete newScreenStreams[userId];
+        return { remoteStreams: newStreams, remoteScreenStreams: newScreenStreams };
     }),
 
     addPeerConnection: (userId, pc) => set((state) => ({
@@ -76,44 +81,65 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
             remoteVideoStates: { ...state.remoteVideoStates, [userId]: isMuted }
         }));
     },
+    setRemoteAudioState: (userId: string, isMuted: boolean) => {
+        set(state => ({
+            remoteAudioStates: { ...state.remoteAudioStates, [userId]: isMuted }
+        }));
+    },
 
     createPeerConnection: (targetUserId, isInitiator, roomId) => {
         const pc = new RTCPeerConnection(ICE_SERVERS);
         const { localStream, addRemoteStream } = get();
 
-        // Add local tracks, or transceivers if muted
-        if (localStream && localStream.getTracks().length > 0) {
-            localStream.getTracks().forEach(track => {
-                pc.addTrack(track, localStream);
-            });
-        } else if (isInitiator) {
-            // Only force transceivers if we are the initiator. 
-            // If answerer, setRemoteDescription will create them from the offer.
-            const emptyStream = localStream || new MediaStream();
-            pc.addTransceiver('audio', { direction: 'sendrecv', streams: [emptyStream] });
-            pc.addTransceiver('video', { direction: 'sendrecv', streams: [emptyStream] });
+        if (isInitiator) {
+            const audioTrack = localStream?.getTracks().find(t => t.kind === 'audio');
+            if (audioTrack) {
+                pc.addTransceiver(audioTrack, { direction: 'sendrecv', streams: [localStream!] });
+            } else {
+                pc.addTransceiver('audio', { direction: 'sendrecv' });
+            }
+
+            const videoTrack = localStream?.getTracks().find(t => t.kind === 'video');
+            if (videoTrack) {
+                pc.addTransceiver(videoTrack, { direction: 'sendrecv', streams: [localStream!] });
+            } else {
+                pc.addTransceiver('video', { direction: 'sendrecv' });
+            }
+
+            const localScreenStream = get().localScreenStream;
+            const screenTrack = localScreenStream?.getVideoTracks()[0];
+            if (screenTrack) {
+                pc.addTransceiver(screenTrack, { direction: 'sendrecv', streams: [localScreenStream!] });
+            } else {
+                pc.addTransceiver('video', { direction: 'sendrecv' });
+            }
         }
 
         // Handle remote tracks — detect if it's a screen share (display surface)
+        // Handle remote tracks — map based on transceiver index
         pc.ontrack = (event) => {
-            let stream: MediaStream;
-            if (event.streams && event.streams.length > 0) {
-                stream = event.streams[0];
+            const transceivers = pc.getTransceivers();
+            const index = transceivers.indexOf(event.transceiver);
+            
+            // Ignore event.streams to prevent browser from accidentally grouping screen share with camera
+            if (index === 2) {
+                const currentStream = get().remoteScreenStreams[targetUserId];
+                const tracks = currentStream ? currentStream.getTracks() : [];
+                if (!tracks.includes(event.track)) {
+                    tracks.push(event.track);
+                }
+                // Create a NEW MediaStream instance so React updates the srcObject
+                const newStream = new MediaStream(tracks);
+                set((state) => ({ remoteScreenStreams: { ...state.remoteScreenStreams, [targetUserId]: newStream } }));
             } else {
-                // Fallback if the remote peer didn't associate a stream
-                stream = get().remoteStreams[targetUserId] || new MediaStream();
-                stream.addTrack(event.track);
-            }
-
-            const videoTrack = stream.getVideoTracks()[0];
-            // Heuristic: if the video track label contains 'screen' or 'display' it's a screen share
-            const isScreen = videoTrack?.label?.toLowerCase().includes('screen') ||
-                             videoTrack?.label?.toLowerCase().includes('display') ||
-                             (videoTrack?.getSettings && videoTrack.getSettings().displaySurface != null);
-            if (isScreen) {
-                set({ isRemoteScreenSharing: true, remoteScreenStream: stream });
-            } else {
-                get().addRemoteStream(targetUserId, stream);
+                const currentStream = get().remoteStreams[targetUserId];
+                const tracks = currentStream ? currentStream.getTracks() : [];
+                if (!tracks.includes(event.track)) {
+                    tracks.push(event.track);
+                }
+                // Create a NEW MediaStream instance so React updates the srcObject
+                const newStream = new MediaStream(tracks);
+                get().addRemoteStream(targetUserId, newStream);
             }
         };
 
@@ -157,18 +183,22 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
             try {
                 const newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const newAudioTrack = newStream.getAudioTracks()[0];
-                
+                let updatedStream = newStream;
                 if (localStream) {
-                    localStream.addTrack(newAudioTrack);
+                    updatedStream = new MediaStream([
+                        ...localStream.getVideoTracks(),
+                        newAudioTrack
+                    ]);
                 }
-                
-                Object.values(peerConnections).forEach(pc => {
-                    const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'audio');
+                const currentPCs = get().peerConnections;
+                Object.values(currentPCs).forEach(pc => {
+                    if (pc.signalingState === 'closed') return;
+                    const transceiver = pc.getTransceivers()[0];
                     if (transceiver && transceiver.sender) {
-                        transceiver.sender.replaceTrack(newAudioTrack);
+                        transceiver.sender.replaceTrack(newAudioTrack).catch(e => console.warn(e));
                     }
                 });
-                set({ isAudioMuted: false, localStream: localStream || newStream });
+                set({ isAudioMuted: false, localStream: updatedStream });
             } catch (err) {
                 console.warn("Failed to enable audio", err);
                 setTimeout(() => {
@@ -176,20 +206,23 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 }, 0);
             }
         } else {
+            let updatedStream = localStream;
             if (localStream) {
                 localStream.getAudioTracks().forEach(track => {
                     track.enabled = false;
                     track.stop();
-                    localStream.removeTrack(track);
                 });
+                updatedStream = new MediaStream(localStream.getVideoTracks());
             }
-            Object.values(peerConnections).forEach(pc => {
-                const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'audio');
+            const currentPCs = get().peerConnections;
+            Object.values(currentPCs).forEach(pc => {
+                if (pc.signalingState === 'closed') return;
+                const transceiver = pc.getTransceivers()[0];
                 if (transceiver && transceiver.sender) {
-                    transceiver.sender.replaceTrack(null);
+                    transceiver.sender.replaceTrack(null).catch(e => console.warn(e));
                 }
             });
-            set({ isAudioMuted: true });
+            set({ isAudioMuted: true, localStream: updatedStream });
         }
     },
 
@@ -199,18 +232,22 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
             try {
                 const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 const newVideoTrack = newStream.getVideoTracks()[0];
-                
+                let updatedStream = newStream;
                 if (localStream) {
-                    localStream.addTrack(newVideoTrack);
+                    updatedStream = new MediaStream([
+                        ...localStream.getAudioTracks(),
+                        newVideoTrack
+                    ]);
                 }
-                
-                Object.values(peerConnections).forEach(pc => {
-                    const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'video');
+                const currentPCs = get().peerConnections;
+                Object.values(currentPCs).forEach(pc => {
+                    if (pc.signalingState === 'closed') return;
+                    const transceiver = pc.getTransceivers()[1];
                     if (transceiver && transceiver.sender) {
-                        transceiver.sender.replaceTrack(newVideoTrack);
+                        transceiver.sender.replaceTrack(newVideoTrack).catch(e => console.warn(e));
                     }
                 });
-                set({ isVideoMuted: false, localStream: localStream || newStream });
+                set({ isVideoMuted: false, localStream: updatedStream });
             } catch (err) {
                 console.warn("Failed to enable video", err);
                 setTimeout(() => {
@@ -218,35 +255,40 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 }, 0);
             }
         } else {
+            let updatedStream = localStream;
             if (localStream) {
                 localStream.getVideoTracks().forEach(track => {
                     track.enabled = false;
                     track.stop();
-                    localStream.removeTrack(track);
                 });
+                updatedStream = new MediaStream(localStream.getAudioTracks());
             }
-            Object.values(peerConnections).forEach(pc => {
-                const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'video');
+            const currentPCs = get().peerConnections;
+            Object.values(currentPCs).forEach(pc => {
+                if (pc.signalingState === 'closed') return;
+                const transceiver = pc.getTransceivers()[1];
                 if (transceiver && transceiver.sender) {
-                    transceiver.sender.replaceTrack(null);
+                    transceiver.sender.replaceTrack(null).catch(e => console.warn(e));
                 }
             });
-            set({ isVideoMuted: true });
+            set({ isVideoMuted: true, localStream: updatedStream });
         }
     },
 
     startScreenShare: async (onStop?: () => void) => {
         try {
             const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            const { localStream, peerConnections } = get();
+            const { peerConnections } = get();
             
             const screenTrack = screenStream.getVideoTracks()[0];
+            const currentPCs = get().peerConnections;
             
-            // Replace video track in all peer connections
-            Object.values(peerConnections).forEach(pc => {
-                const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'video');
+            // Replace video track in all peer connections for transceiver index 2
+            Object.values(currentPCs).forEach(pc => {
+                if (pc.signalingState === 'closed') return;
+                const transceiver = pc.getTransceivers()[2];
                 if (transceiver && transceiver.sender) {
-                    transceiver.sender.replaceTrack(screenTrack);
+                    transceiver.sender.replaceTrack(screenTrack).catch(e => console.warn(e));
                 }
             });
 
@@ -256,7 +298,7 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 if (onStop) onStop();
             };
 
-            set({ isScreenSharing: true, localStream: screenStream });
+            set({ isScreenSharing: true, localScreenStream: screenStream });
         } catch (err) {
             console.warn('Failed to start screen share', err);
         }
@@ -264,33 +306,26 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
 
     stopScreenShare: async () => {
         try {
-            const { peerConnections, localStream } = get();
+            const { peerConnections, localScreenStream } = get();
             
             // Stop the screen share tracks
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
+            if (localScreenStream) {
+                localScreenStream.getTracks().forEach(track => {
+                    track.enabled = false;
+                    track.stop();
+                });
             }
             
-            Object.values(peerConnections).forEach(pc => {
-                const transceiver = pc.getTransceivers().find(t => t.receiver.track.kind === 'video');
+            const currentPCs = get().peerConnections;
+            Object.values(currentPCs).forEach(pc => {
+                if (pc.signalingState === 'closed') return;
+                const transceiver = pc.getTransceivers()[2];
                 if (transceiver && transceiver.sender) {
-                    transceiver.sender.replaceTrack(null);
+                    transceiver.sender.replaceTrack(null).catch(e => console.warn(e));
                 }
             });
 
-            // Recover the audio track if it is still being sent
-            let currentAudioTrack = null;
-            const pcIds = Object.keys(peerConnections);
-            if (pcIds.length > 0) {
-                const transceiver = peerConnections[pcIds[0]].getTransceivers().find(t => t.receiver.track.kind === 'audio');
-                if (transceiver && transceiver.sender && transceiver.sender.track) {
-                    currentAudioTrack = transceiver.sender.track;
-                }
-            }
-
-            const newLocalStream = currentAudioTrack ? new MediaStream([currentAudioTrack]) : null;
-
-            set({ isScreenSharing: false, localStream: newLocalStream, isVideoMuted: true });
+            set({ isScreenSharing: false, localScreenStream: null });
         } catch (err) {
             console.error('Failed to stop screen share', err);
         }
@@ -298,14 +333,11 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
 
     setRemoteScreenShare: (userId, isSharing) => set((state) => {
         const intents = { ...state.remoteScreenShareIntents, [userId]: isSharing };
-        const stream = state.remoteStreams[userId];
         
-        if (isSharing && stream) {
-            return { remoteScreenShareIntents: intents, isRemoteScreenSharing: true, remoteScreenStream: stream };
-        } else if (!isSharing) {
-            return { remoteScreenShareIntents: intents, isRemoteScreenSharing: false, remoteScreenStream: null };
+        if (isSharing) {
+            return { remoteScreenShareIntents: intents, isRemoteScreenSharing: true };
         } else {
-            return { remoteScreenShareIntents: intents };
+            return { remoteScreenShareIntents: intents, isRemoteScreenSharing: false };
         }
     })
 }));

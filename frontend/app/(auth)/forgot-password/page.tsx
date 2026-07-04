@@ -1,13 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { requestPasswordReset } from "@/services/authService";
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        router.push("/login");
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,7 +39,14 @@ export default function ForgotPasswordPage() {
 
   return (
     <main className="auth-page">
-      <div className="auth-card">
+      <div className="auth-card relative">
+        <button
+          onClick={() => router.push("/login")}
+          className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground transition-all duration-300 hover:bg-red-500/10 hover:text-red-500 hover:rotate-90 active:scale-95"
+          aria-label="Close"
+        >
+          <X size={20} />
+        </button>
         <div className="auth-logo">
           <span className="auth-logo-text">CollabCode</span>
         </div>

@@ -76,14 +76,14 @@ export default function LoginPage() {
           className="w-full max-w-md relative z-10"
         >
           {/* Glassmorphic Card */}
-          <div className="rounded-3xl border border-border/40 bg-card/30 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl">
-            <div className="mb-8 text-center">
+          <div className="rounded-3xl border border-border/40 bg-card/30 p-6 sm:px-8 sm:py-6 shadow-2xl backdrop-blur-2xl">
+            <div className="mb-5 text-center">
               <Link href="/" className="inline-block transition-transform hover:scale-105">
                 <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-emerald-400">
                   CollabCode
                 </span>
               </Link>
-              <h1 className="mt-6 text-3xl font-bold tracking-tight text-foreground">
+              <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground">
                 Welcome back
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -92,7 +92,7 @@ export default function LoginPage() {
             </div>
 
             {/* OAuth Buttons */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2.5">
               <OAuthButton href={`${oauthBase}/oauth2/authorization/google`} icon={<GoogleIcon />}>
                 Continue with Google
               </OAuthButton>
@@ -101,7 +101,7 @@ export default function LoginPage() {
               </OAuthButton>
             </div>
 
-            <div className="my-8 flex items-center">
+            <div className="my-5 flex items-center">
               <div className="flex-grow border-t border-border/40" />
               <span className="mx-4 text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">
                 Or sign in with credentials
@@ -109,7 +109,7 @@ export default function LoginPage() {
               <div className="flex-grow border-t border-border/40" />
             </div>
 
-            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
               <AuthInput
                 id="identifier"
                 label="Email or username"
@@ -134,6 +134,20 @@ export default function LoginPage() {
                 showStrength={false} // Only show strength on Register
               />
 
+              <div className="flex justify-end -mt-3 mb-1">
+                <Link
+                  href="/forgot-password"
+                  className="relative group inline-flex items-center px-4 py-1.5 text-xs font-semibold text-primary transition-all duration-300"
+                >
+                  <div className="absolute inset-0 bg-primary/10 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-primary/5 to-transparent rounded-full opacity-0 group-hover:opacity-100 transform translate-y-[2px] transition-all duration-300"></div>
+                  <div className="absolute inset-0 rounded-full border border-primary/20 group-hover:border-primary/50 transition-colors duration-300 bg-background/50 backdrop-blur-sm group-hover:-translate-y-[2px] group-active:translate-y-[1px] shadow-sm group-hover:shadow-[0_4px_12px_rgba(var(--primary),0.2)]"></div>
+                  <span className="relative z-10 transform group-hover:-translate-y-[2px] group-active:translate-y-[1px] transition-transform duration-300 drop-shadow-sm">
+                    Forgot password?
+                  </span>
+                </Link>
+              </div>
+
               <div className="mt-2">
                 <AuthButton type="submit" loading={loading} success={success}>
                   Sign In
@@ -141,7 +155,7 @@ export default function LoginPage() {
               </div>
             </form>
 
-            <div className="mt-8 text-center text-sm text-muted-foreground">
+            <div className="mt-5 text-center text-sm text-muted-foreground">
               Don&apos;t have an account?{" "}
               <Link href="/register" className="font-semibold text-primary transition-colors hover:text-primary/80">
                 Create one

@@ -1,15 +1,18 @@
 package com.collabcode.auth.controller;
 
+import com.collabcode.auth.dto.ChangePasswordRequest;
 import com.collabcode.auth.dto.LoginRequest;
 import com.collabcode.auth.dto.PasswordResetConfirmRequest;
 import com.collabcode.auth.dto.PasswordResetRequest;
 import com.collabcode.auth.dto.RegisterRequest;
+import com.collabcode.auth.security.CollabUserDetails;
 import com.collabcode.auth.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -76,6 +79,18 @@ public class AuthController {
             @Valid @RequestBody PasswordResetConfirmRequest request) {
         authService.resetPassword(request.token(), request.newPassword());
         return ResponseEntity.ok(Map.of("message", "Password successfully reset."));
+    }
+
+    /** POST /auth/change-password */
+    @PostMapping("/change-password")
+    public ResponseEntity<Map<String, Object>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal CollabUserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        authService.changePassword(userDetails.getId(), request.currentPassword(), request.newPassword());
+        return ResponseEntity.ok(Map.of("message", "Password successfully updated."));
     }
 
     /** GET /auth/me */

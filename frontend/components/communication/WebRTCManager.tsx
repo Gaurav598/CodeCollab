@@ -3,8 +3,79 @@ import { useWebRTCStore } from '@/store/webrtcStore';
 import { stompService } from '@/services/stompClient';
 import { useAuthStore } from '@/store/authStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
-import { Mic, MicOff, Video, VideoOff, MonitorUp, Lock, ShieldAlert } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, MonitorUp, Lock, ShieldAlert, Pin } from 'lucide-react';
 import { canUseMedia } from '@/utils/permissions';
+
+function useAudioActivity(stream: MediaStream | null, isMuted: boolean) {
+    const [isSpeaking, setIsSpeaking] = React.useState(false);
+
+    React.useEffect(() => {
+        if (!stream || isMuted) {
+            setIsSpeaking(false);
+            return;
+        }
+
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length === 0 || !audioTracks[0].enabled || audioTracks[0].muted) {
+            setIsSpeaking(false);
+            return;
+        }
+
+        let audioContext: AudioContext;
+        try {
+            audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        } catch (e) {
+            return;
+        }
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        
+        let source: MediaStreamAudioSourceNode;
+        try {
+            source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+        } catch (err) {
+            console.warn("Failed to create audio source for VAD", err);
+            return;
+        }
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        let animationFrame: number;
+        let speakFrames = 0;
+
+        const checkAudio = () => {
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            const average = sum / dataArray.length;
+            
+            if (average > 10) {
+                speakFrames = 5;
+                setIsSpeaking(true);
+            } else {
+                if (speakFrames > 0) {
+                    speakFrames--;
+                } else {
+                    setIsSpeaking(false);
+                }
+            }
+            animationFrame = requestAnimationFrame(checkAudio);
+        };
+        checkAudio();
+
+        return () => {
+            cancelAnimationFrame(animationFrame);
+            try {
+                source.disconnect();
+                audioContext.close();
+            } catch (e) {}
+        };
+    }, [stream, isMuted]);
+
+    return isSpeaking;
+}
 
 interface WebRTCManagerProps {
     roomId: string;
@@ -17,11 +88,19 @@ function VideoTile({
     muted,
     label,
     forceVideoOff,
+    forceAudioOff,
+    isLocal,
+    isPinned,
+    onPin,
 }: {
     stream: MediaStream | null;
     muted?: boolean;
     label: string;
     forceVideoOff?: boolean;
+    forceAudioOff?: boolean;
+    isLocal?: boolean;
+    isPinned?: boolean;
+    onPin?: () => void;
 }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isRemoteVideoOff, setIsRemoteVideoOff] = React.useState(false);
@@ -52,25 +131,67 @@ function VideoTile({
     }, [stream]);
 
     const showDummy = forceVideoOff !== undefined ? forceVideoOff : isRemoteVideoOff;
+    const isMicOn = forceAudioOff === false; // Explictly false means mic is ON
+    const isSpeaking = useAudioActivity(stream, forceAudioOff || false);
+
+    let borderClasses = "border-border shadow-md";
+    if (isMicOn) {
+        if (isSpeaking) {
+            if (showDummy) {
+                // Heavy animation when camera is off
+                borderClasses = "border-primary ring-4 ring-primary/40 shadow-[0_0_25px_rgba(var(--primary),0.6)] animate-pulse transition-all duration-75";
+            } else {
+                // Subtle border when camera is on
+                borderClasses = "border-primary ring-2 ring-primary/50 transition-all duration-75";
+            }
+        } else {
+            if (showDummy) {
+                borderClasses = "border-primary/80 ring-2 ring-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.3)] transition-all duration-300";
+            } else {
+                borderClasses = "border-transparent transition-all duration-300";
+            }
+        }
+    }
 
     return (
-        <div className="relative rounded-xl overflow-hidden bg-muted border border-border aspect-video w-full shadow-md">
-            {!showDummy && (
-                <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted={muted}
-                    className="w-full h-full object-cover bg-background"
-                />
+        <div className={`relative rounded-xl overflow-hidden bg-muted border aspect-video w-full ${borderClasses}`}>
+            <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted={muted}
+                className={`w-full h-full object-cover bg-background scale-x-[-1] ${showDummy ? 'opacity-0' : 'opacity-100'}`}
+            />
+            {onPin && (
+                <div className="absolute top-2 right-2 z-20">
+                    <button 
+                        onClick={onPin}
+                        title={isPinned ? "Unpin video" : "Pin video"}
+                        className={`p-1.5 rounded-full transition-all backdrop-blur-md border shadow-sm ${
+                            isPinned 
+                            ? 'bg-primary/90 border-primary text-primary-foreground' 
+                            : 'bg-background/40 hover:bg-background/70 border-white/10 text-white/70 hover:text-white'
+                        }`}
+                    >
+                        <Pin size={14} className={isPinned ? "fill-current" : ""} />
+                    </button>
+                </div>
             )}
             {showDummy && (
-                <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
-                    <div className="flex flex-col items-center gap-2">
-                        <div className="w-12 h-12 rounded-full bg-background flex items-center justify-center shadow-sm border border-border">
-                            <VideoOff className="text-muted-foreground w-5 h-5" />
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background overflow-hidden group z-0">
+                    {/* Animated background blobs for the dummy video */}
+                    <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] bg-primary/10 rounded-full blur-[40px] animate-[pulse_6s_ease-in-out_infinite]"></div>
+                    <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] bg-blue-500/10 rounded-full blur-[40px] animate-[pulse_5s_ease-in-out_infinite]" style={{ animationDelay: '2s' }}></div>
+                    
+                    <div className="relative z-10 flex flex-col items-center gap-3 transform transition-transform duration-500 group-hover:scale-105">
+                        <div className="relative w-16 h-16 rounded-full bg-background/60 backdrop-blur-xl flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-white/10 transition-colors">
+                            {/* Inner rotating dashed ring */}
+                            <div className="absolute inset-1.5 rounded-full border border-dashed border-white/20 animate-[spin_10s_linear_infinite]"></div>
+                            <VideoOff className="text-gray-400 w-6 h-6 drop-shadow-md relative z-10" />
                         </div>
-                        <span className="text-xs text-muted-foreground font-medium">Camera off</span>
+                        <div className="bg-background/40 backdrop-blur-md px-3.5 py-1.5 rounded-full text-[11px] text-gray-300 font-medium shadow-inner border border-white/5 tracking-wide">
+                            {forceAudioOff ? "Camera & Mic off" : "Camera off"}
+                        </div>
                     </div>
                 </div>
             )}
@@ -101,21 +222,41 @@ export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
     const roomMembers = useWorkspaceStore(state => state.roomMembers);
     const [warningMessage, setWarningMessage] = React.useState<string | null>(null);
     const remoteVideoStates = useWebRTCStore(state => state.remoteVideoStates);
+    const remoteAudioStates = useWebRTCStore(state => state.remoteAudioStates);
+    const [pinnedTileId, setPinnedTileId] = React.useState<string | null>(null);
 
-    // Initialize an empty local stream so the VideoTile and PeerConnections have a reference
+    // Initialize dummy local stream so PeerConnections always negotiate sendrecv
     useEffect(() => {
-        setLocalStream(new MediaStream());
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1; canvas.height = 1;
+            const ctx = canvas.getContext('2d');
+            if (ctx) { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, 1, 1); }
+            const videoStream = canvas.captureStream(1);
+            
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            const audioCtx = new AudioCtx();
+            const dest = audioCtx.createMediaStreamDestination();
+            
+            setLocalStream(new MediaStream([
+                dest.stream.getAudioTracks()[0],
+                videoStream.getVideoTracks()[0]
+            ]));
+        } catch (e) {
+            setLocalStream(new MediaStream());
+        }
     }, [setLocalStream]);
 
-    // Broadcast local mute state whenever it changes
+    // Broadcast local media state whenever it changes
     useEffect(() => {
         if (!currentUser?.id) return;
         stompService.publish(`/topic/room.${roomId}.video.presence`, {
-            type: 'VIDEO_STATE',
+            type: 'MEDIA_STATE',
             userId: currentUser.id,
-            isVideoMuted
+            isVideoMuted,
+            isAudioMuted
         });
-    }, [isVideoMuted, roomId, currentUser?.id]);
+    }, [isVideoMuted, isAudioMuted, roomId, currentUser?.id]);
 
     // Handle instant role downgrade to viewer
     useEffect(() => {
@@ -129,11 +270,12 @@ export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
         }
     }, [userRole]);
 
-    // Filter remote streams to ONLY include users who have editor/owner permissions
-    // Viewers should not be visible in the video grid at all.
-    const remoteEntries = Object.entries(remoteStreams).filter(([userId]) => {
-        const member = roomMembers.find(m => m.userId === userId);
-        if (!member) return false; // DON'T SHOW UNKNOWN MEMBERS
+    // Render video tiles for ALL online users (from Yjs awareness) who have editor/owner permissions
+    // This ensures users who join with camera/mic off still get a tile!
+    const onlineRemoteMediaUsers = (users || []).filter(u => {
+        if (u.id === currentUser?.id) return false;
+        const member = roomMembers.find(m => m.userId === u.id);
+        if (!member) return false;
         return canUseMedia(member.role);
     });
 
@@ -167,30 +309,54 @@ export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
                 </div>
             )}
             {/* Video Grid */}
-            <div className={`grid grid-cols-1 gap-3`}>
-                {canUseMedia(userRole || 'editor') && (
-                    <VideoTile
-                        stream={localStream}
-                        muted
-                        label={`You${isAudioMuted ? ' 🔇' : ''}`}
-                        forceVideoOff={isVideoMuted}
-                    />
-                )}
-                {remoteEntries.map(([userId, stream]) => {
-                    const user = users?.find(u => u.id === userId);
-                    const displayName = user?.name || `User ${userId.substring(0, 6)}`;
-                    return (
+            {canUseMedia(userRole || 'editor') && (
+                <div className={`grid grid-cols-1 gap-3`}>
+                    {[
+                        {
+                            id: 'local',
+                            stream: localStream,
+                            muted: true,
+                            label: currentUser?.username || "You",
+                            forceVideoOff: isVideoMuted,
+                            forceAudioOff: isAudioMuted,
+                            isLocal: true,
+                        },
+                        ...onlineRemoteMediaUsers.map((user) => {
+                            const stream = remoteStreams[user.id];
+                            const displayName = user.name || `User ${user.id.substring(0, 6)}`;
+                            const isVideoOff = !stream || remoteVideoStates[user.id] !== false; 
+                            const isAudioOff = !stream || remoteAudioStates[user.id] !== false;
+                            return {
+                                id: user.id,
+                                stream: stream || new MediaStream(),
+                                muted: remoteAudioStates[user.id] ?? false,
+                                label: displayName,
+                                forceVideoOff: isVideoOff,
+                                forceAudioOff: isAudioOff,
+                                isLocal: false,
+                            };
+                        })
+                    ].sort((a, b) => {
+                        if (a.id === pinnedTileId) return -1;
+                        if (b.id === pinnedTileId) return 1;
+                        if (a.isLocal) return -1;
+                        if (b.isLocal) return 1;
+                        return 0;
+                    }).map(tile => (
                         <VideoTile
-                            key={userId}
-                            stream={stream}
-                            label={displayName}
-                            forceVideoOff={remoteVideoStates[userId]}
+                            key={tile.id}
+                            stream={tile.stream}
+                            muted={tile.muted}
+                            label={tile.label}
+                            forceVideoOff={tile.forceVideoOff}
+                            forceAudioOff={tile.forceAudioOff}
+                            isLocal={tile.isLocal}
+                            isPinned={pinnedTileId === tile.id}
+                            onPin={() => setPinnedTileId(pinnedTileId === tile.id ? null : tile.id)}
                         />
-                    );
-                })}
-            </div>
-
-            {/* Controls or Permission Panel */}
+                    ))}
+                </div>
+            )}
             {!canUseMedia(userRole || 'editor') ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-6 rounded-2xl border border-white/5 relative overflow-hidden group transition-all duration-700 ease-out bg-[#0f111a] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
                    {/* 3D animated background blobs - More lively and colorful */}

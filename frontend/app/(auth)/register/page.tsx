@@ -76,14 +76,14 @@ export default function RegisterPage() {
           className="w-full max-w-md relative z-10 py-10 lg:py-0"
         >
           {/* Glassmorphic Card */}
-          <div className="rounded-3xl border border-border/40 bg-card/30 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl">
-            <div className="mb-6 text-center">
+          <div className="rounded-3xl border border-border/40 bg-card/30 p-6 sm:px-8 sm:py-6 shadow-2xl backdrop-blur-2xl">
+            <div className="mb-4 text-center">
               <Link href="/" className="inline-block transition-transform hover:scale-105">
                 <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-emerald-400">
                   CollabCode
                 </span>
               </Link>
-              <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground">
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
                 Create your account
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -101,7 +101,7 @@ export default function RegisterPage() {
               </OAuthButton>
             </div>
 
-            <div className="my-6 flex items-center">
+            <div className="my-4 flex items-center">
               <div className="flex-grow border-t border-border/40" />
               <span className="mx-4 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider">
                 Or create an account
@@ -109,7 +109,7 @@ export default function RegisterPage() {
               <div className="flex-grow border-t border-border/40" />
             </div>
 
-            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-3">
               <AuthInput
                 id="username"
                 label="Username"
@@ -156,7 +156,7 @@ export default function RegisterPage() {
               </div>
             </form>
 
-            <div className="mt-6 text-center text-sm text-muted-foreground">
+            <div className="mt-4 text-center text-sm text-muted-foreground">
               Already have an account?{" "}
               <Link href="/login" className="font-semibold text-primary transition-colors hover:text-primary/80">
                 Sign in

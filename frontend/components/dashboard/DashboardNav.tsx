@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { LogOut } from "lucide-react";
+import { LogOut, KeyRound } from "lucide-react";
+import { ChangePasswordModal } from "@/components/auth/ChangePasswordModal";
 
 interface DashboardNavProps {
   username: string;
@@ -10,7 +12,10 @@ interface DashboardNavProps {
 }
 
 export function DashboardNav({ username, onLogout }: DashboardNavProps) {
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+
   return (
+    <>
     <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/50 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="flex h-20 items-center justify-between">
@@ -35,10 +40,17 @@ export function DashboardNav({ username, onLogout }: DashboardNavProps) {
           {/* Right Actions */}
           <div className="flex items-center gap-4">
             <button
-              onClick={onLogout}
-              className="group flex items-center gap-2 rounded-full border border-border/40 bg-card/30 px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-card/80 hover:text-foreground hover:shadow-lg hover:shadow-primary/5"
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="group flex items-center gap-2 rounded-full border border-border/40 bg-card/30 px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary hover:border-primary/50 hover:shadow-lg hover:shadow-primary/20"
             >
-              <LogOut size={16} className="transition-transform group-hover:-translate-x-1" />
+              <KeyRound size={16} className="transition-transform group-hover:-translate-x-1 text-muted-foreground group-hover:text-primary" />
+              Change Password
+            </button>
+            <button
+              onClick={onLogout}
+              className="group flex items-center gap-2 rounded-full border border-border/40 bg-card/30 px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 hover:shadow-lg hover:shadow-red-500/20"
+            >
+              <LogOut size={16} className="transition-transform group-hover:-translate-x-1 text-muted-foreground group-hover:text-red-500" />
               Logout
             </button>
           </div>
@@ -46,5 +58,10 @@ export function DashboardNav({ username, onLogout }: DashboardNavProps) {
         </div>
       </div>
     </nav>
+    <ChangePasswordModal 
+      isOpen={isPasswordModalOpen} 
+      onClose={() => setIsPasswordModalOpen(false)} 
+    />
+    </>
   );
 }

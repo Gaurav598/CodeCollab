@@ -33,6 +33,32 @@ export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomI
                     }
                     await pc.setRemoteDescription(new RTCSessionDescription(payload));
                     
+                    // The browser just created transceivers based on the offer. Attach local tracks to them.
+                    const transceivers = pc.getTransceivers();
+                    const localStream = useWebRTCStore.getState().localStream;
+                    const localScreenStream = useWebRTCStore.getState().localScreenStream;
+                    
+                    if (transceivers[0] && localStream) {
+                        const audioTrack = localStream.getAudioTracks()[0];
+                        if (audioTrack) transceivers[0].sender.replaceTrack(audioTrack);
+                    }
+                    if (transceivers[1] && localStream) {
+                        const videoTrack = localStream.getVideoTracks()[0];
+                        if (videoTrack) transceivers[1].sender.replaceTrack(videoTrack);
+                    }
+                    if (transceivers[2] && localScreenStream) {
+                        const screenTrack = localScreenStream.getVideoTracks()[0];
+                        if (screenTrack) transceivers[2].sender.replaceTrack(screenTrack);
+                    }
+                    
+                    // Force all transceivers to 'sendrecv' so the answer includes a=sendrecv
+                    // This is crucial because setRemoteDescription defaults them to recvonly if no track was provided initially
+                    transceivers.forEach(t => {
+                        if (t.direction !== 'stopped') {
+                            t.direction = 'sendrecv';
+                        }
+                    });
+                    
                     while (pendingCandidates.current[senderId].length > 0) {
                         const candidate = pendingCandidates.current[senderId].shift();
                         pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn("Failed to add queued ICE:", e));
@@ -72,15 +98,21 @@ export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomI
 
             if (userId === currentUser?.id) return;
 
-            if (type === 'VIDEO_STATE') {
-                useWebRTCStore.getState().setRemoteVideoState(userId, data.isVideoMuted);
+            if (type === 'MEDIA_STATE' || type === 'VIDEO_STATE') {
+                if (data.isVideoMuted !== undefined) useWebRTCStore.getState().setRemoteVideoState(userId, data.isVideoMuted);
+                if (data.isAudioMuted !== undefined) useWebRTCStore.getState().setRemoteAudioState(userId, data.isAudioMuted);
             } else if (type === 'SCREEN_SHARE_START') {
                 useWebRTCStore.getState().setRemoteScreenShare(userId, true);
             } else if (type === 'SCREEN_SHARE_STOP') {
                 useWebRTCStore.getState().setRemoteScreenShare(userId, false);
             } else if (type === 'JOINED') {
                 // Tell the new user our current mute state immediately
-                stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'VIDEO_STATE', userId: currentUser?.id, isVideoMuted: useWebRTCStore.getState().isVideoMuted });
+                stompService.publish(`/topic/room.${roomId}.video.presence`, { 
+                    type: 'MEDIA_STATE', 
+                    userId: currentUser?.id, 
+                    isVideoMuted: useWebRTCStore.getState().isVideoMuted,
+                    isAudioMuted: useWebRTCStore.getState().isAudioMuted
+                });
                 // Also tell them if we are screen sharing
                 if (useWebRTCStore.getState().isScreenSharing) {
                     stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'SCREEN_SHARE_START', userId: currentUser?.id });
