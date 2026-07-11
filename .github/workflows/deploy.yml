@@ -19,7 +19,7 @@ jobs:
       # 2. Google Cloud SDK setup
       - uses: google-github-actions/setup-gcloud@v2
 
-      # Removed 'Enable GCP APIs' step because Service Account lacks permission.
+
       # 4. Backend deploy
       - name: Deploy Backend
         run: |
