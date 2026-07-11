@@ -19,13 +19,7 @@ jobs:
       # 2. Google Cloud SDK setup
       - uses: google-github-actions/setup-gcloud@v2
 
-      # 3. Enable Required APIs
-      - name: Enable GCP APIs
-        run: |
-          gcloud services enable run.googleapis.com
-          gcloud services enable cloudbuild.googleapis.com
-          gcloud services enable artifactregistry.googleapis.com
-
+      # Removed 'Enable GCP APIs' step because Service Account lacks permission.
       # 4. Backend deploy
       - name: Deploy Backend
         run: |
