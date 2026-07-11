@@ -35,3 +35,13 @@ playwright-report/
 test-results/
 backend/.gradle/
 backend/bin/
+
+# Add under Java/Backend
+*.class
+*.jar
+*.war
+.gradle/
+
+# Add under Env files
+.env.*
+!.env.example # Yeh track hona chahiye

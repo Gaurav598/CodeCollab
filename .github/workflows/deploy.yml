@@ -1,0 +1,54 @@
+name: Deploy to GCP Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Google Cloud ke sath Auth
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # 2. Google Cloud SDK setup
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # 3. Enable Required APIs (Fixes the PERMISSION_DENIED error)
+      - name: Enable GCP APIs
+        run: |
+          gcloud services enable run.googleapis.com
+          gcloud services enable cloudbuild.googleapis.com
+          gcloud services enable artifactregistry.googleapis.com
+
+      # 4. Backend deploy
+      - name: Deploy Backend
+        run: |
+          gcloud run deploy codecollab-backend \
+          --source ./backend \
+          --region asia-south1 \
+          --allow-unauthenticated \
+          --set-env-vars MONGO_URI=${{ secrets.MONGO_URI }},REDIS_URL=${{ secrets.REDIS_URL }}
+
+      # 5. Sync Service deploy
+      - name: Deploy Sync Service
+        run: |
+          gcloud run deploy codecollab-sync \
+          --source ./sync-service \
+          --region asia-south1 \
+          --allow-unauthenticated \
+          --set-env-vars REDIS_URL=${{ secrets.REDIS_URL }}
+
+      # 6. Frontend Deploy (Agar frontend bhi host karna ho toh isko uncomment karein)
+      # - name: Deploy Frontend
+      #   run: |
+      #     gcloud run deploy codecollab-frontend \
+      #     --source ./frontend \
+      #     --region asia-south1 \
+      #     --allow-unauthenticated \
+      #     --set-env-vars NEXT_PUBLIC_API_URL=https://<YOUR_BACKEND_URL>
