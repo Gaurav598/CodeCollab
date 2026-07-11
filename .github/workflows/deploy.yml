@@ -19,7 +19,7 @@ jobs:
       # 2. Google Cloud SDK setup
       - uses: google-github-actions/setup-gcloud@v2
 
-      # 3. Enable Required APIs (Fixes the PERMISSION_DENIED error)
+      # 3. Enable Required APIs
       - name: Enable GCP APIs
         run: |
           gcloud services enable run.googleapis.com
@@ -33,7 +33,7 @@ jobs:
           --source ./backend \
           --region asia-south1 \
           --allow-unauthenticated \
-          --set-env-vars MONGO_URI=${{ secrets.MONGO_URI }},REDIS_URL=${{ secrets.REDIS_URL }}
+          --set-env-vars SPRING_DATA_MONGODB_URI=${{ secrets.MONGO_URI }},SPRING_DATA_REDIS_URL=${{ secrets.REDIS_URL }},EXECUTION_ENGINE_URL=${{ secrets.EXECUTION_ENGINE_URL }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
 
       # 5. Sync Service deploy
       - name: Deploy Sync Service
@@ -44,11 +44,23 @@ jobs:
           --allow-unauthenticated \
           --set-env-vars REDIS_URL=${{ secrets.REDIS_URL }}
 
-      # 6. Frontend Deploy (Agar frontend bhi host karna ho toh isko uncomment karein)
-      # - name: Deploy Frontend
-      #   run: |
-      #     gcloud run deploy codecollab-frontend \
-      #     --source ./frontend \
-      #     --region asia-south1 \
-      #     --allow-unauthenticated \
-      #     --set-env-vars NEXT_PUBLIC_API_URL=https://<YOUR_BACKEND_URL>
+      # 6. Dynamic URL Fetch & Frontend Deploy
+      - name: Deploy Frontend
+        run: |
+          # Pehle backend aur sync service ke live Cloud Run URLs fetch karo
+          BACKEND_LIVE_URL=$(gcloud run services describe codecollab-backend --region asia-south1 --format 'value(status.url)')
+          SYNC_LIVE_URL=$(gcloud run services describe codecollab-sync --region asia-south1 --format 'value(status.url)')
+          
+          # HTTP ko WSS (WebSocket Secure) me convert karo
+          WS_LIVE_URL="${BACKEND_LIVE_URL/https/wss}/ws"
+          WSS_SYNC_LIVE_URL="${SYNC_LIVE_URL/https/wss}"
+
+          echo "Backend URL: $BACKEND_LIVE_URL"
+          echo "Websocket URL: $WS_LIVE_URL"
+          
+          # Frontend deploy karo aur build time par URLs pass karo
+          gcloud run deploy codecollab-frontend \
+          --source ./frontend \
+          --region asia-south1 \
+          --allow-unauthenticated \
+          --set-build-env-vars NEXT_PUBLIC_API_BASE_URL=$BACKEND_LIVE_URL,NEXT_PUBLIC_STOMP_WS_URL=$WS_LIVE_URL,NEXT_PUBLIC_SYNC_WS_URL=$WSS_SYNC_LIVE_URL

@@ -6,6 +6,17 @@ RUN npm install
 FROM node:22-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Capture build arguments passed by Cloud Build (--set-build-env-vars)
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
+ARG NEXT_PUBLIC_SYNC_WS_URL
+ENV NEXT_PUBLIC_SYNC_WS_URL=$NEXT_PUBLIC_SYNC_WS_URL
+
+ARG NEXT_PUBLIC_STOMP_WS_URL
+ENV NEXT_PUBLIC_STOMP_WS_URL=$NEXT_PUBLIC_STOMP_WS_URL
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
