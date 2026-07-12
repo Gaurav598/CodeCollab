@@ -32,12 +32,7 @@ public class LocalFallbackProviderAdapter implements AiProviderAdapter {
     }
 
     private String autocomplete(AiGatewayRequest request) {
-        String language = request.language();
-        if ("python".equalsIgnoreCase(language)) return "    return result";
-        if ("java".equalsIgnoreCase(language)) return "        return result;";
-        if ("go".equalsIgnoreCase(language)) return "\treturn result";
-        if ("cpp".equalsIgnoreCase(language) || "c++".equalsIgnoreCase(language)) return "    return result;";
-        return "  return result;";
+        return "";
     }
 
     private String refactor(AiGatewayRequest request) {

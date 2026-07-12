@@ -186,8 +186,9 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
     const binding = new MonacoBinding(
       type,
       currentModel,
-      new Set([editorRef.current]),
-      provider.awareness
+      new Set([editorRef.current])
+      // Removed provider.awareness to prevent y-monaco from drawing its own cursors,
+      // since we use a custom <RemoteCursors /> component for better styling.
     );
 
     console.log(`[STAGE 3] MonacoBinding created for ${activeFile.id}`);
