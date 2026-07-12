@@ -37,7 +37,13 @@ public class ExecutionEngineClient {
     }
 
     public SandboxExecuteResult execute(String language, String sourceCode, String stdin, int timeoutMs) {
-        String url = executionEngineProperties.getEngineUrl() + "/execute";
+        String engineUrl = executionEngineProperties.getEngineUrl();
+        if (engineUrl != null && engineUrl.endsWith("/")) {
+            engineUrl = engineUrl.substring(0, engineUrl.length() - 1);
+        }
+        String url = (engineUrl != null && engineUrl.endsWith("/execute")) 
+                     ? engineUrl 
+                     : engineUrl + "/execute";
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
