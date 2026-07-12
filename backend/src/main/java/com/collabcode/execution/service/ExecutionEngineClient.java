@@ -47,13 +47,14 @@ public class ExecutionEngineClient {
             headers.setBearerAuth(apiKey);
         }
 
+        int safeTimeout = Math.min(timeoutMs, 3000);
         Map<String, Object> body = Map.of(
                 "language", language,
                 "version", "*",
                 "files", java.util.List.of(Map.of("content", sourceCode)),
                 "stdin", stdin != null ? stdin : "",
-                "run_timeout", timeoutMs,
-                "compile_timeout", timeoutMs
+                "run_timeout", safeTimeout,
+                "compile_timeout", safeTimeout
         );
 
         try {

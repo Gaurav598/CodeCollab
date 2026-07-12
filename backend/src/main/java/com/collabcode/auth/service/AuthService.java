@@ -258,10 +258,11 @@ public class AuthService {
 
     private void setRefreshCookie(HttpServletResponse response, String rawToken) {
         long maxAgeSeconds = securityProperties.getRefreshTokenExpirationDays() * 86400;
+        String sameSite = securityProperties.isRefreshCookieSecure() ? "None" : "Lax";
         ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, rawToken)
                 .httpOnly(true)
                 .secure(securityProperties.isRefreshCookieSecure())
-                .sameSite("Lax")
+                .sameSite(sameSite)
                 .path("/")
                 .maxAge(maxAgeSeconds)
                 .build();
@@ -269,10 +270,11 @@ public class AuthService {
     }
 
     private void clearRefreshCookie(HttpServletResponse response) {
+        String sameSite = securityProperties.isRefreshCookieSecure() ? "None" : "Lax";
         ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, "")
                 .httpOnly(true)
                 .secure(securityProperties.isRefreshCookieSecure())
-                .sameSite("Lax")
+                .sameSite(sameSite)
                 .path("/")
                 .maxAge(0)
                 .build();
