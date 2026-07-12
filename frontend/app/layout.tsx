@@ -5,6 +5,7 @@ import { SessionBootstrap } from "@/components/auth/SessionBootstrap";
 import { ThemeProvider } from "@/components/ui/ThemeProvider";
 import { GlobalModals } from "@/components/ui/GlobalModals";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import { ServerPing } from "@/components/ui/ServerPing";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -45,6 +46,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider>
+          <ServerPing />
           <SessionBootstrap />
           {children}
           <GlobalModals />
