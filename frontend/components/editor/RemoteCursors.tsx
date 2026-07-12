@@ -8,10 +8,25 @@ interface RemoteCursorsProps {
 }
 
 export function RemoteCursors({ editor, users }: RemoteCursorsProps) {
+  const collectionRef = React.useRef<monaco.editor.IEditorDecorationsCollection | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (collectionRef.current) {
+        collectionRef.current.clear();
+        collectionRef.current = null;
+      }
+    };
+  }, [editor]);
+
   useEffect(() => {
     if (!editor) return;
 
-    let decorationsCollection: monaco.editor.IEditorDecorationsCollection | null = null;
+    if (!collectionRef.current) {
+      collectionRef.current = editor.createDecorationsCollection([]);
+    }
+    
+    let timeoutId: ReturnType<typeof setTimeout>;
     
     const updateDecorations = () => {
       const newDecorations: monaco.editor.IModelDeltaDecoration[] = [];
@@ -49,11 +64,12 @@ export function RemoteCursors({ editor, users }: RemoteCursorsProps) {
         }
       });
 
-      if (!decorationsCollection) {
-        decorationsCollection = editor.createDecorationsCollection(newDecorations);
-      } else {
-        decorationsCollection.set(newDecorations);
-      }
+      // Use setTimeout to debounce and fully break out of Monaco's event loop
+      timeoutId = setTimeout(() => {
+        if (collectionRef.current) {
+          collectionRef.current.set(newDecorations);
+        }
+      }, 10);
     };
 
     updateDecorations();
@@ -95,11 +111,9 @@ export function RemoteCursors({ editor, users }: RemoteCursorsProps) {
         document.head.appendChild(style);
       }
     });
-
+    
     return () => {
-      if (decorationsCollection) {
-        decorationsCollection.clear();
-      }
+      clearTimeout(timeoutId);
     };
   }, [editor, users]);
 
