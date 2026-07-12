@@ -93,10 +93,10 @@ export default function RegisterPage() {
 
             {/* OAuth Buttons */}
             <div className="flex flex-col gap-2.5">
-              <OAuthButton href={`${oauthBase}/auth/google`} icon={<GoogleIcon />}>
+              <OAuthButton href={`${oauthBase}/oauth2/authorization/google`} icon={<GoogleIcon />}>
                 Sign up with Google
               </OAuthButton>
-              <OAuthButton href={`${oauthBase}/auth/github`} icon={<GitHubIcon />}>
+              <OAuthButton href={`${oauthBase}/oauth2/authorization/github`} icon={<GitHubIcon />}>
                 Sign up with GitHub
               </OAuthButton>
             </div>
