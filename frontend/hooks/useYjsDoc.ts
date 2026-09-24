@@ -3,21 +3,34 @@ import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { syncConfig } from '../services/syncConfig';
 import { useAuthStore } from '../store/authStore';
-import { getAccessToken } from '../services/authService';
+import { getAccessToken, subscribeAccessToken } from '../services/authService';
 
 export function useYjsDoc(roomId: string, activeFileId: string | null, openFileIds: string[]) {
   const [activeDoc, setActiveDoc] = useState<Y.Doc | null>(null);
   const [activeProvider, setActiveProvider] = useState<WebsocketProvider | null>(null);
   const [connected, setConnected] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'connecting' | 'syncing' | 'live' | 'offline'>('offline');
   
-  const connectionsRef = useRef<Map<string, { doc: Y.Doc, provider: WebsocketProvider }>>(new Map());
+  const connectionsRef = useRef<Map<string, { doc: Y.Doc, provider: WebsocketProvider, token: string }>>(new Map());
   const user = useAuthStore(state => state.user);
-  const token = getAccessToken();
+  const [token, setToken] = useState<string | null>(() => getAccessToken());
+
+  useEffect(() => subscribeAccessToken(setToken), []);
 
   useEffect(() => {
     if (!roomId || !token || !user) return;
 
     const currentConnections = connectionsRef.current;
+
+    // Access-token rotation must also rotate WebSocket credentials. Existing
+    // Y.Docs are safely recreated from the server's authoritative CRDT state.
+    for (const [fileId, connection] of currentConnections.entries()) {
+      if (connection.token !== token) {
+        connection.provider.destroy();
+        connection.doc.destroy();
+        currentConnections.delete(fileId);
+      }
+    }
     
     // Connect new tabs
     openFileIds.forEach(fileId => {
@@ -27,26 +40,12 @@ export function useYjsDoc(roomId: string, activeFileId: string | null, openFileI
         const roomPath = `sync?roomId=${encodeURIComponent(roomId)}&fileId=${encodeURIComponent(fileId)}&token=${encodeURIComponent(token)}`;
         const wsProvider = new WebsocketProvider(wsUrl, roomPath, ydoc);
         
-        console.log(`\n================================`);
-        console.log(`[STAGE 1/4] PROVIDER CREATED`);
-        console.log(`[STAGE 1] Room: ${roomId}, File: ${fileId}, User: ${user.id}`);
-        console.log(`[STAGE 1] WebSocket URL: ${wsUrl}/${roomPath}`);
-        console.log(`================================\n`);
-
-        wsProvider.on('status', (event: any) => {
-          console.log(`[STAGE 4] PROVIDER STATUS for file ${fileId}: ${event.status}`);
-        });
-        
-        wsProvider.on('sync', (isSynced: boolean) => {
-          console.log(`[STAGE 4] PROVIDER SYNC for file ${fileId}: isSynced=${isSynced}`);
-        });
-
         wsProvider.on('connection-error', (event: any) => {
-          console.log(`[STAGE 4] PROVIDER CONNECTION ERROR for file ${fileId}:`, event);
+          console.warn(`[Yjs] Connection error for file ${fileId}`, event);
         });
 
         wsProvider.on('connection-close', (event: any) => {
-          console.log(`[STAGE 4] PROVIDER CONNECTION CLOSE for file ${fileId}:`, event);
+          if (event?.code === 4403) console.warn(`[Yjs] Access revoked for file ${fileId}`);
         });
 
         const userColor = getUserColor(user.id);
@@ -56,11 +55,7 @@ export function useYjsDoc(roomId: string, activeFileId: string | null, openFileI
           color: userColor
         });
         
-        wsProvider.awareness.on('update', ({ added, updated, removed }: any, origin: any) => {
-          console.log(`[STAGE 1] AWARENESS UPDATE for file ${fileId}. Added: ${added.length}, Updated: ${updated.length}, Removed: ${removed.length}. Origin: ${origin}`);
-        });
-
-        currentConnections.set(fileId, { doc: ydoc, provider: wsProvider });
+        currentConnections.set(fileId, { doc: ydoc, provider: wsProvider, token });
       }
     });
 
@@ -99,6 +94,7 @@ export function useYjsDoc(roomId: string, activeFileId: string | null, openFileI
       setActiveDoc(null);
       setActiveProvider(null);
       setConnected(false);
+      setSyncStatus('offline');
       return;
     }
 
@@ -107,18 +103,36 @@ export function useYjsDoc(roomId: string, activeFileId: string | null, openFileI
     setActiveProvider(provider);
     
     const handleStatus = (event: { status: string }) => {
-      setConnected(event.status === 'connected');
+      const isConnected = event.status === 'connected';
+      setConnected(isConnected);
+      setSyncStatus(isConnected ? (provider.synced ? 'live' : 'syncing') : 'connecting');
+    };
+    const handleSync = (isSynced: boolean) => setSyncStatus(isSynced ? 'live' : 'syncing');
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const handleUpdate = (_update: Uint8Array, origin: unknown) => {
+      if (origin === provider) return;
+      setSyncStatus(provider.wsconnected ? 'syncing' : 'offline');
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        setSyncStatus(provider.wsconnected ? 'live' : 'offline');
+      }, 600);
     };
     
     setConnected(provider.wsconnected);
+    setSyncStatus(provider.wsconnected ? (provider.synced ? 'live' : 'syncing') : 'connecting');
     provider.on('status', handleStatus);
+    provider.on('sync', handleSync);
+    doc.on('update', handleUpdate);
     
     return () => {
       provider.off('status', handleStatus);
+      provider.off('sync', handleSync);
+      doc.off('update', handleUpdate);
+      if (settleTimer) clearTimeout(settleTimer);
     };
   }, [activeFileId, openFileIds]); // openFileIds included so it reruns if a new active connection was just created
 
-  return { doc: activeDoc, provider: activeProvider, connected };
+  return { doc: activeDoc, provider: activeProvider, connected, syncStatus };
 }
 
 // Deterministic color assignment based on User ID

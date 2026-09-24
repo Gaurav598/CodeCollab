@@ -1,334 +1,170 @@
-# 🚀 CollabCode – AI-Powered Developer Collaboration Platform
+# CodeCollab
 
-> An enterprise-grade, real-time collaborative coding environment built for modern remote teams.
+CodeCollab is a browser-based collaborative development workspace built with Next.js, Monaco, Yjs, Spring Boot, MongoDB, Redis, STOMP and WebRTC.
 
-Inspired by Cursor, VS Code, Replit, and Live Share, CollabCode provides an immersive, multi-file workspace where developers can write, execute, and discuss code simultaneously with sub-millisecond latency.
+This branch includes the production-collaboration upgrade: durable versioned Yjs snapshots, file-level authorization, authenticated realtime channels, reconnect-safe collaboration, semantic WebRTC media handling, a resizable workspace, bounded AI fallback and remote-execution controls.
 
-### 🌐 Live Demo
-👉 **[Try CodeCollab Now!](https://codecollab-phi.vercel.app)** 
+## Capabilities
 
----
+- Multi-file Monaco workspace with tabs, file tree and collapsible/resizable sidebar.
+- Conflict-free collaborative editing and awareness using Yjs.
+- MongoDB-backed Yjs snapshots with optimistic versioning and recovery buffering.
+- Owner/editor/viewer room roles, approval flow and active revocation.
+- STOMP chat, participant presence and authenticated WebRTC signaling.
+- Peer-to-peer microphone, camera and screen sharing with optional TURN.
+- Context-aware AI autocomplete/provider gateway when credentials are configured.
+- Remote code execution through a separately operated sandbox service.
+- Email/password and optional Google/GitHub OAuth authentication.
 
-## 📸 Screenshots
+The browser’s Live sync indicator reports realtime Yjs synchronization, not a per-edit MongoDB acknowledgement. WebRTC remains a small-room mesh and real-device verification is required before deployment.
 
-| Dashboard | Workspace | Editor |
-| :---: | :---: | :---: |
-| ![Dashboard](https://via.placeholder.com/600x400?text=Dashboard+Placeholder) | ![Workspace](https://via.placeholder.com/600x400?text=Workspace+Placeholder) | ![Editor](https://via.placeholder.com/600x400?text=Editor+Placeholder) |
-
-| Chat & Comm | Video Call | AI Assistant |
-| :---: | :---: | :---: |
-| ![Chat](https://via.placeholder.com/600x400?text=Chat+Placeholder) | ![Video Call](https://via.placeholder.com/600x400?text=Video+Call+Placeholder) | ![AI Assistant](https://via.placeholder.com/600x400?text=AI+Assistant+Placeholder) |
-
----
-
-## ✨ Features
-
-### Workspace & Realtime Collaboration
-* **Multi-File Workspace:** VS Code-style file tree, tabs, and multi-file editing built on top of Monaco Editor.
-* **Realtime Synchronization:** CRDT-powered conflict-free edits with Yjs and live cursors.
-* **Separation of Concerns:** Realtime state is managed purely in memory via Redis and Sync Service, while persistent document storage is flushed asynchronously to MongoDB.
-
-### Developer Experience & Code Execution
-* **Remote Code Execution:** Secure, containerized remote execution mapped to an external AWS Execution Engine.
-* **Saved Codes:** Persist, manage, and retrieve snippets via the Saved Codes modal.
-* **Command Palette:** Quick-action keyboard accessible command interface.
-
-### Communication & Collaboration
-* **Real-time Chat:** STOMP-based messaging integrated directly into the workspace panel.
-* **Video/Audio Calling:** Native WebRTC peer-to-peer video streaming for live pair programming.
-* **Notifications:** Real-time presence and notification bells.
-
-### AI Integration
-* **Context-Aware Assistance:** Integrated AI assistant interacting with your active codebase.
-* **Refactoring & Generation:** Backend capabilities to invoke LLM endpoints dynamically.
-
-### Authentication & Security
-* **JWT & OAuth2:** Stateless authentication supporting email/password and social login (Google, GitHub).
-* **Role-Based Access Control:** Secure room entry, owner permissions, and execution boundaries.
-
----
-
-## 🛠 Tech Stack
-
-### Frontend
-* **Framework:** Next.js, React, TypeScript
-* **State & Styling:** Zustand, Tailwind CSS, Shadcn UI
-* **Editor:** Monaco Editor (`@monaco-editor/react`)
-* **Realtime:** Yjs, `y-monaco`, `y-websocket`
-
-### Backend
-* **Core:** Java 21, Spring Boot 3
-* **Security:** Spring Security, JWT (`jjwt`)
-* **Realtime Messaging:** Spring WebSocket (STOMP)
-* **Build Tool:** Gradle
-
-### Sync Service
-* **Runtime:** Node.js, Express, TypeScript
-* **Engine:** `y-websocket`, `ws`
-
-### Infrastructure & Databases
-* **Primary Database:** MongoDB Atlas (Spring Data MongoDB)
-* **Cache & PubSub:** Redis (Spring Data Redis, `ioredis`)
-* **DevOps:** Docker, Docker Compose
-* **External Services:** AWS Execution Engine
-
----
-
-## 🏗 Architecture
-
-```mermaid
-graph TD
-    Client[Browser Client]
-    
-    subgraph Frontend [Next.js UI]
-        Editor[Monaco Editor]
-        State[Zustand]
-        Y[Yjs Engine]
-    end
-    
-    subgraph API Gateway / Core
-        Spring[Spring Boot Backend]
-        Auth[JWT & OAuth2]
-        DB_Controller[Mongo Controller]
-    end
-    
-    subgraph Realtime Sync Engine
-        Node[Sync Service]
-        YWS[Y-Websocket Server]
-    end
-    
-    subgraph Data Layer
-        Redis[(Redis Cache / PubSub)]
-        Mongo[(MongoDB Atlas)]
-    end
-    
-    subgraph External Services
-        AWS[AWS Execution Engine]
-        LLM[AI Provider API]
-    end
-
-    Client <-->|HTTPS / UI Interactions| Frontend
-    Frontend <-->|REST / STOMP| Spring
-    Frontend <-->|WebSockets| Node
-    
-    Spring <-->|Data Persistence| Mongo
-    Spring <-->|Session / State| Redis
-    Spring <-->|Execute Code| AWS
-    Spring <-->|Generative AI| LLM
-    
-    Node <-->|Sync State| Redis
-```
-
-**Service Overview:**
-* **Frontend:** Serves the interactive React application.
-* **Backend:** Handles core business logic, persistence, RBAC, API integrations, and chat messaging.
-* **Sync Service:** A dedicated, lightweight Node.js WebSocket server running `y-websocket` to exclusively handle CRDT synchronization at high frequency without blocking the Java backend.
-* **Redis:** Acts as a session store and the central Pub/Sub backbone connecting instances.
-* **MongoDB Atlas:** The persistent source of truth for user profiles, room metadata, saved codes, and archived chat history.
-
----
-
-## 📂 Folder Structure
+## Architecture
 
 ```text
-collabcode/
-├── backend/                  # Java 21, Spring Boot 3 API
-│   ├── src/main/java/com/collabcode/
-│   │   ├── ai/               # AI integrations
-│   │   ├── auth/             # JWT & OAuth2 Security
-│   │   ├── chat/             # STOMP messaging & notifications
-│   │   ├── config/           # App configurations
-│   │   ├── execution/        # AWS Execution Engine bindings
-│   │   ├── internal/         # Internal API endpoints
-│   │   └── room/             # Workspace & File CRUD
-│   ├── build.gradle          # Gradle build script
-│   └── Dockerfile
-├── frontend/                 # Next.js Application
-│   ├── components/           # UI Components (Editor, Chat, WebRTC)
-│   ├── package.json          
-│   └── Dockerfile
-├── sync-service/             # Node.js CRDT WebSocket Server
-│   ├── src/                  
-│   ├── package.json
-│   └── Dockerfile
-└── docker-compose.yml        # Local infrastructure definition
+Next.js browser
+  +-- REST / STOMP ----------------> Spring Boot ----> MongoDB
+  |                                      |
+  |                                      +----------> Redis quotas
+  |                                      +----------> AI providers
+  |                                      `----------> remote execution engine
+  +-- Yjs WebSocket ---------------> sync service --> Spring internal API/MongoDB
+  |                                      `----------> Redis Pub/Sub + recovery
+  `-- WebRTC media <--------------------------------> other browsers
 ```
 
----
+MongoDB is the durable collaborative-document authority. Redis supports multi-process live convergence and temporary recovery; it is not treated as the durable commit. See:
 
-## 🚀 Installation & Setup
+- [Architecture](ARCHITECTURE.md)
+- [Collaboration persistence](COLLABORATION_PERSISTENCE.md)
+- [Security review](SECURITY_REVIEW.md)
+- [Manual testing guide](MANUAL_TESTING_GUIDE.md)
+- [Changelog](CHANGELOG.md)
 
-### Prerequisites
-* **Java 21**
-* **Node.js (v18+)**
-* **Docker & Docker Compose**
-* **Git**
+`Analysis.md` is the historical baseline audit and may describe defects fixed on this branch. `Futurefeature.md` contains remaining work rather than current guarantees.
 
-### 1. Environment Variables
-Create a `.env` file at the root.
+## Repository layout
+
+```text
+backend/        Spring Boot API, persistence, STOMP, AI and execution gateways
+frontend/       Next.js application, Monaco/Yjs, Zustand and WebRTC UI
+sync-service/   Authenticated y-websocket server and snapshot lifecycle
+docker-compose.yml
+```
+
+## Requirements
+
+- Java 21
+- Node.js 20+ and npm
+- MongoDB
+- Redis 7/8
+- Docker Compose (recommended for local integration)
+
+AI and remote code execution require external services. CodeCollab does not execute untrusted code inside the backend container.
+
+## Configuration
+
+Copy the template and replace every placeholder secret:
+
+```bash
+cp .env.example .env
+```
+
+Required:
+
+- `MONGODB_URI`
+- `JWT_SECRET` — at least 32 random bytes, identical in backend and sync service
+- `SERVICE_JWT_SECRET` — a separate high-entropy internal-service credential
+
+Local public endpoints default to:
 
 ```env
-# Backend & General
-MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/collabcode
-JWT_SECRET=your_super_secret_jwt_key
-JWT_EXPIRATION=900
-SERVICE_JWT_SECRET=internal_service_auth_key
-
-# Execution & AI
-EXECUTION_ENGINE_URL=https://your-aws-engine.example.com
-EXECUTION_ENGINE_API_KEY=your_engine_key
-
-# OAuth2 (Optional)
-GOOGLE_CLIENT_ID=your_google_id
-GOOGLE_CLIENT_SECRET=your_google_secret
-GITHUB_CLIENT_ID=your_github_id
-GITHUB_CLIENT_SECRET=your_github_secret
-
-# Sync Service
-PORT=1234
-REDIS_URL=redis://localhost:6379
-
-# Frontend
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1
 NEXT_PUBLIC_SYNC_WS_URL=ws://localhost:1234
-NEXT_PUBLIC_STOMP_WS_URL=ws://localhost:8080/ws
+NEXT_PUBLIC_STOMP_WS_URL=ws://localhost:8080/api/v1/ws
+FRONTEND_URL=http://localhost:3000
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+REFRESH_COOKIE_SECURE=false
 ```
 
-### 2. Running the Project (Locally)
+For production use HTTPS/WSS URLs, exact origins and `REFRESH_COOKIE_SECURE=true`. The `NEXT_PUBLIC_*` values are compiled into the frontend. TURN credentials placed there are public; use short-lived or restricted credentials.
 
-**Clone the repository:**
+Optional groups in `.env.example` cover OAuth, AI providers, document flush/recheck intervals, TURN and the remote execution engine. No provider key rotation is implemented or recommended to evade quotas.
+
+## Run with Docker Compose
+
 ```bash
-git clone https://github.com/yourusername/collabcode.git
-cd collabcode
+docker compose up --build
 ```
 
-**Start the Infrastructure (Redis):**
+Services:
+
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:8080/api/v1`
+- Sync service: `ws://localhost:1234/sync`
+- Redis: `localhost:6379`
+
+Follow collaboration logs with:
+
+```bash
+docker compose logs -f backend sync-service
+```
+
+Compose enables Redis AOF with `appendfsync everysec`. MongoDB remains external through `MONGODB_URI`.
+
+## Run services directly
+
+Use separate terminals:
+
 ```bash
 docker compose up -d redis
 ```
 
-**Start the Backend:**
 ```bash
 cd backend
 ./gradlew bootRun
 ```
 
-**Start the Sync Service:**
 ```bash
 cd sync-service
 npm install
 npm run dev
 ```
 
-**Start the Frontend:**
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### 3. Build & Test Commands
+## Build and checks
 
-**Backend (Gradle):**
 ```bash
-./gradlew clean         # Clean build artifacts
-./gradlew build         # Compile and package application
-./gradlew test          # Run unit tests
+cd backend && ./gradlew compileJava
+cd sync-service && npm run build
+cd frontend && npm run lint
 ```
 
-**Frontend (NPM):**
-```bash
-npm run build           # Build production bundle
-npm run lint            # Run TypeScript typechecks
-npm run test            # Run Vitest tests
-```
+Additional repository scripts exist for Gradle, Vitest and Playwright, but the presence of a script is not a claim of comprehensive coverage. Consult the current branch handoff and [MANUAL_TESTING_GUIDE.md](MANUAL_TESTING_GUIDE.md) for the checks actually performed and the required two-user/media verification.
 
----
+## Key API and realtime routes
 
-## 📡 API Overview
+- REST auth: `/api/v1/auth/*`
+- Rooms/files: `/api/v1/rooms/*`, `/api/v1/files/*`
+- AI: `/api/v1/ai/*`
+- Execution: `/api/v1/execution/*`
+- STOMP endpoint: `/api/v1/ws`
+- Yjs endpoint: sync-service `/sync?roomId=<uuid>&fileId=<uuid>&token=<access-jwt>`
 
-* **Authentication (`/api/v1/auth`)**: Login, Signup, OAuth callbacks, Token validation.
-* **Rooms (`/api/v1/rooms`)**: Create, join, and manage collaborative workspaces.
-* **Files (`/api/v1/files`)**: CRUD operations for the file tree state.
-* **Saved Codes (`/api/v1/saved-codes`)**: Persist personal code snippets.
-* **Execution (`/api/v1/execution`)**: Submit code blocks to the AWS Execution Engine.
-* **AI (`/api/v1/ai`)**: Prompt and contextual code generation endpoints.
-* **Health (`/api/v1/health`)**: Actuator-style readiness checks.
+Shared file content is written only through the sync-service snapshot path. Public file PATCH remains available for path/language metadata, but rejects `content` with `COLLABORATIVE_CONTENT_MANAGED_BY_SYNC`.
 
----
+## Operational limits
 
-## ⚡ Realtime Collaboration Architecture
+- WebRTC mesh bandwidth/CPU grows with every peer; use small rooms.
+- The built-in STOMP broker is process-local. Multi-instance backend deployment needs a broker relay or an explicitly single/sticky topology.
+- Yjs access revocation is periodically rechecked (30 seconds by default).
+- The current protocol does not expose a durable-commit acknowledgement to the browser.
+- External AI availability, TURN reachability and execution isolation are operator responsibilities.
 
-CollabCode implements a robust CRDT (Conflict-free Replicated Data Type) architecture tailored for code editing:
+## License
 
-1. A user types in the **Monaco Editor**.
-2. **Yjs** calculates the exact delta of the change.
-3. The delta is pushed via WebSockets to the lightweight **Sync Service** (`y-websocket`).
-4. The Sync Service immediately broadcasts the delta to all other **Connected Clients**.
-5. Concurrently, state updates are propagated through **Redis** to ensure multi-node scalability.
-6. The Spring Boot backend asynchronously pulls snapshots of the document state to persist to **MongoDB Atlas**, intentionally keeping disk I/O out of the critical realtime loop.
-
----
-
-## 🚢 Deployment
-
-The application is fully containerized and intended for cloud deployment.
-* **Docker Compose:** The root `docker-compose.yml` ties the frontend, backend, sync-service, and Redis together for single-node deployments.
-* **State:** MongoDB is hosted externally on **MongoDB Atlas** for high availability.
-* **Remote Execution:** Code runs isolated on the **AWS Execution Engine** to protect the primary backend from malicious payloads.
-* **Builds:** The backend is packaged entirely via the **Gradle Wrapper**, ensuring repeatable Docker builds without requiring host dependencies.
-
----
-
-## 🧪 Testing
-* **Backend:** Comprehensive unit testing utilizing JUnit 5 and Mockito (executed via `./gradlew test`). JaCoCo is integrated for test coverage reporting.
-* **Frontend:** Vitest for component logic and Playwright configured for E2E workflows.
-
----
-
-## 🔒 Security
-* **Authentication:** Stateless JWT verification on every protected route.
-* **Authorization:** Strict RBAC limits room mutations to Room Owners and restricts execution based on quotas.
-* **Data Validation:** Zod validates all incoming UI forms; Spring Validation handles backend DTO sanitization.
-
----
-
-## 🚀 Performance
-* **Incremental Builds:** Powered by the recent migration to Gradle, backend compilation caches heavily reduce CI times.
-* **WebSocket Isolation:** High-frequency typing events are offloaded to Node.js, ensuring the Java backend never bottlenecks on character-by-character events.
-* **Lazy Loading:** Frontend component code-splitting via Next.js dynamically loads heavy dependencies (like Monaco Editor).
-
----
-
-## 🛣 Roadmap
-
-### Completed
-* [x] Basic multi-file editing
-* [x] CRDT real-time synchronization
-* [x] STOMP Chat integration
-* [x] Gradle Build System Migration
-* [x] AWS Execution Engine binding
-* [x] WebRTC Video/Audio
-
-### In Progress
-* [ ] Multi-cursor performance enhancements
-* [ ] Advanced AI autocomplete UI binding
-
-### Planned
-* [ ] WebAssembly offline execution mode
-* [ ] Advanced language servers (LSP) integration
-
----
-
-## 🤝 Contributing
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Ensure backend code builds (`./gradlew build`) and tests pass (`./gradlew test`)
-4. Commit your changes (`git commit -m 'Add amazing feature'`)
-5. Push to the branch (`git push origin feature/amazing-feature`)
-6. Open a Pull Request
-
----
-
-## 📄 License
-This project is licensed under the MIT License.
+See the repository license.

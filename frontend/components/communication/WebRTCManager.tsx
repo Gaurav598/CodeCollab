@@ -227,6 +227,7 @@ export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
 
     // Initialize dummy local stream so PeerConnections always negotiate sendrecv
     useEffect(() => {
+        let dummyAudioContext: AudioContext | null = null;
         try {
             const canvas = document.createElement('canvas');
             canvas.width = 1; canvas.height = 1;
@@ -236,6 +237,7 @@ export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
             
             const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
             const audioCtx = new AudioCtx();
+            dummyAudioContext = audioCtx;
             const dest = audioCtx.createMediaStreamDestination();
             
             setLocalStream(new MediaStream([
@@ -245,12 +247,17 @@ export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
         } catch (e) {
             setLocalStream(new MediaStream());
         }
+        return () => {
+            useWebRTCStore.getState().cleanupLocalMedia();
+            void dummyAudioContext?.close();
+        };
     }, [setLocalStream]);
 
     // Broadcast local media state whenever it changes
     useEffect(() => {
         if (!currentUser?.id) return;
-        stompService.publish(`/topic/room.${roomId}.video.presence`, {
+        stompService.publish('/app/video.presence', {
+            roomId,
             type: 'MEDIA_STATE',
             userId: currentUser.id,
             isVideoMuted,
@@ -265,7 +272,7 @@ export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
             if (!isVideoMuted) toggleVideo();
             if (isScreenSharing) {
                 stopScreenShare();
-                stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'SCREEN_SHARE_STOP', userId: currentUser?.id });
+                stompService.publish('/app/video.presence', { roomId, type: 'SCREEN_SHARE_STOP' });
             }
         }
     }, [userRole]);
@@ -291,14 +298,16 @@ export function WebRTCManager({ roomId, users, userRole }: WebRTCManagerProps) {
             return;
         }
         await startScreenShare(() => {
-            stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'SCREEN_SHARE_STOP', userId: currentUser?.id });
+            stompService.publish('/app/video.presence', { roomId, type: 'SCREEN_SHARE_STOP' });
         });
-        stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'SCREEN_SHARE_START', userId: currentUser?.id });
+        if (useWebRTCStore.getState().isScreenSharing) {
+            stompService.publish('/app/video.presence', { roomId, type: 'SCREEN_SHARE_START' });
+        }
     };
 
     const handleStopScreenShare = async () => {
         await stopScreenShare();
-        stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'SCREEN_SHARE_STOP', userId: currentUser?.id });
+        stompService.publish('/app/video.presence', { roomId, type: 'SCREEN_SHARE_STOP' });
     };
 
     return (

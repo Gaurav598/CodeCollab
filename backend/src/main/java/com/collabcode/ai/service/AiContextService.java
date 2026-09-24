@@ -43,6 +43,9 @@ public class AiContextService {
             activeFile = fileRepository.findById(request.fileId())
                     .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "File not found"));
             roomId = activeFile.getRoomId();
+            if (request.roomId() != null && !request.roomId().equals(roomId)) {
+                throw ApiException.forbidden("FILE_ROOM_MISMATCH", "Active file does not belong to the requested room");
+            }
         } else if (request.roomId() != null) {
             roomId = request.roomId();
         }
@@ -61,6 +64,9 @@ public class AiContextService {
                 if (files.size() >= properties.getMaxContextFiles()) break;
                 FileEntry file = fileRepository.findById(fileId)
                         .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "Context file not found"));
+                if (roomId != null && !roomId.equals(file.getRoomId())) {
+                    throw ApiException.forbidden("FILE_ROOM_MISMATCH", "Context file does not belong to the requested room");
+                }
                 requireAccess(file.getRoomId(), userId, AiFeature.CHAT);
                 files.putIfAbsent(file.getId(), toContextFile(file, null));
             }
@@ -78,19 +84,32 @@ public class AiContextService {
             code = activeFile.getContent();
         }
 
-        return new ContextEnvelope(
-                sanitizer.sanitize(request.safeLanguage()),
-                sanitizer.sanitize(request.path() != null ? request.path() : activeFile != null ? activeFile.getPath() : ""),
-                sanitizer.sanitize(code),
-                sanitizer.sanitize(request.safeSelection()),
-                sanitizer.sanitize(request.safeInstruction()),
-                new ArrayList<>(files.values())
-        );
+        String language = sanitizer.sanitize(request.safeLanguage());
+        String path = sanitizer.sanitize(request.path() != null ? request.path() : activeFile != null ? activeFile.getPath() : "");
+        String sanitizedCode = sanitizer.sanitize(code);
+        String selection = sanitizer.sanitize(request.safeSelection());
+        String instruction = sanitizer.sanitize(request.safeInstruction());
+        int remaining = Math.max(0, properties.getMaxPromptChars()
+                - language.length() - path.length() - sanitizedCode.length()
+                - selection.length() - instruction.length());
+        List<AiContextFile> budgetedFiles = new ArrayList<>();
+        for (AiContextFile file : files.values()) {
+            if (remaining <= 0) break;
+            String content = file.content();
+            if (content.length() > remaining) content = content.substring(0, remaining) + "\n[TRUNCATED]";
+            budgetedFiles.add(new AiContextFile(file.fileId(), file.path(), file.language(), content));
+            remaining -= Math.min(remaining, content.length());
+        }
+
+        return new ContextEnvelope(language, path, sanitizedCode, selection, instruction, budgetedFiles);
     }
 
     private void requireAccess(UUID roomId, UUID userId, AiFeature feature) {
         MemberRole role = roomMemberRepository.findByRoomIdAndUserId(roomId, userId).map(com.collabcode.room.domain.RoomMember::getRole)
                 .orElseThrow(() -> ApiException.forbidden("FORBIDDEN", "Not a member of this room"));
+        if (role == MemberRole.pending) {
+            throw ApiException.forbidden("PENDING_APPROVAL", "Waiting for room owner approval");
+        }
         if (feature.isWriteIntent() && !role.canEdit()) {
             throw ApiException.forbidden("FORBIDDEN", "Editor or Owner role required");
         }

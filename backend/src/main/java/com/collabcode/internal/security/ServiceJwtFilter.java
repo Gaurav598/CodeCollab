@@ -1,9 +1,6 @@
 package com.collabcode.internal.security;
 
 import com.collabcode.config.SecurityProperties;
-import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,7 +10,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -46,7 +42,6 @@ public class ServiceJwtFilter extends OncePerRequestFilter {
 
         String token = header.substring(7);
         String configuredSecret = properties.getServiceJwtSecret();
-        System.out.println("DEBUG: token=" + token + ", expected=" + configuredSecret);
         byte[] expected = configuredSecret != null ? configuredSecret.getBytes(StandardCharsets.UTF_8) : new byte[0];
         byte[] provided = token.getBytes(StandardCharsets.UTF_8);
         if (MessageDigest.isEqual(expected, provided)) {

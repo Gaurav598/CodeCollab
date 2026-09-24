@@ -4,8 +4,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import Editor, { useMonaco } from '@monaco-editor/react';
 import type * as monaco from 'monaco-editor';
 import { MonacoBinding } from 'y-monaco';
-import * as Y from 'yjs';
-import { renameFile, updateFileContent, getFileContent } from '@/services/workspaceService';
+import { renameFile } from '@/services/workspaceService';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useYjsDoc } from '../../hooks/useYjsDoc';
 import { useAwareness } from '../../hooks/useAwareness';
@@ -35,7 +34,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   const updateTabLanguage = useWorkspaceStore(state => state.updateTabLanguage);
 
   const openFileIds = React.useMemo(() => openFiles.map(f => f.id), [openFiles]);
-  const { doc, provider, connected } = useYjsDoc(roomId, activeFileId, openFileIds);
+  const { doc, provider, connected, syncStatus } = useYjsDoc(roomId, activeFileId, openFileIds);
   const users = useAwareness(provider);
   const isRemoteScreenSharing = useWebRTCStore(state => state.isRemoteScreenSharing);
   const isLocalScreenSharing = useWebRTCStore(state => state.isScreenSharing);
@@ -54,8 +53,6 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autocompleteAbortControllerRef = useRef<AbortController | null>(null);
   const autocompleteCacheRef = useRef<Map<string, string[]>>(new Map());
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasLoadedContent = useRef<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [currentModelUri, setCurrentModelUri] = useState("");
@@ -139,9 +136,6 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
     return () => {
       editorDisposablesRef.current.forEach(disposable => disposable.dispose());
       editorDisposablesRef.current = [];
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
     };
   }, []);
 
@@ -162,25 +156,6 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
     // The shared text type
     const type = doc.getText('monaco');
     console.log(`[STAGE 2] Y.Text created/retrieved for ${activeFile.id}`);
-
-    // Observer registration for Stage 2
-    const observer = (event: Y.YTextEvent, transaction: Y.Transaction) => {
-      if (!transaction.local) return; // ONLY AUTO-SAVE LOCAL CHANGES!
-
-      // Debounced Auto-Save (Fixes code loss on reload)
-      if (userRole === "viewer") return; // Viewers do not have permission to save
-
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(async () => {
-        try {
-          await updateFileContent(activeFile.id, type.toString());
-        } catch (e) {
-          console.warn("Auto-save failed", e);
-        }
-      }, 1000);
-    };
-    type.observe(observer);
-    console.log(`[STAGE 2] Observer registered for ${activeFile.id}`);
 
     // Create the binding
     const binding = new MonacoBinding(
@@ -209,47 +184,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
 
     bindingRef.current = binding;
 
-    // Initial load from DB if completely empty
-    const initializeContent = async () => {
-      if (hasLoadedContent.current.has(activeFile.id)) return;
-
-      // Wait for Yjs to sync state across clients first
-      if (!provider.synced) {
-        await new Promise<void>(resolve => {
-          const onSync = (isSynced: boolean) => {
-            if (isSynced) {
-              provider.off('sync', onSync);
-              resolve();
-            }
-          };
-          provider.on('sync', onSync);
-          // Wait for actual sync, no fallback timeout that causes premature fetch
-        });
-      }
-
-      if (type.length === 0) {
-        try {
-          const fileEntry = await getFileContent(activeFile.id);
-          if (fileEntry.content && type.length === 0) {
-            type.insert(0, fileEntry.content);
-          }
-        } catch (err: any) {
-          if (err?.status === 404) {
-            console.warn(`File ${activeFile.id} not found on server. Closing local tab.`);
-            useWorkspaceStore.getState().closeTab(activeFile.id);
-          } else {
-            console.warn("Fetch Error during room initialization:", err);
-          }
-        }
-      }
-      hasLoadedContent.current.add(activeFile.id);
-    };
-
-    initializeContent();
-
     return () => {
-      console.log(`[STAGE 2] Observer unregistered for ${activeFile.id}`);
-      type.unobserve(observer);
       if (bindingRef.current) {
         try {
           bindingRef.current.destroy();
@@ -400,9 +335,8 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
     const code = getCode();
     try {
       setIsSaving(true);
-      // Also update the room's temporary collaborative state in MongoDB just in case
-      await updateFileContent(activeFile.id, code);
-      // explicitly save to user's personal saved codes
+      // Collaborative durability is handled centrally by the sync service. This
+      // action creates an explicit personal checkpoint without racing CRDT state.
       const { saveExplicitCode } = await import('@/services/workspaceService');
       await saveExplicitCode(roomId, activeFile.path, activeFile.language, code);
 
@@ -477,6 +411,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
           onLanguageChange={handleLanguageChange} 
           onSave={handleExplicitSave} 
           isSaving={isSaving}
+          syncStatus={syncStatus}
           isRightPanelOpen={isRightPanelOpen}
           onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)}
         />

@@ -1,4 +1,11 @@
 import { IncomingMessage } from "http";
+import { createRequire } from "module";
+import { config } from "./config.js";
+
+const require = createRequire(import.meta.url);
+const jwt = require("jsonwebtoken") as {
+  verify(token: string, secret: string, options: { algorithms: string[] }): Record<string, unknown>;
+};
 
 export interface TokenClaims {
   sub: string;
@@ -18,22 +25,17 @@ export function extractToken(req: IncomingMessage): string | null {
   return null;
 }
 
-// Minimal JWT parser (the sync service has no direct DB access; it reads the userId
-// from the JWT payload to call the backend membership API for authorization)
-export function parseJwt(token: string): TokenClaims | null {
+/** Verify the access-token signature and expiry before trusting its subject. */
+export function verifyJwt(token: string): TokenClaims | null {
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-
-    const base64Url = parts[1];
-    if (!base64Url) return null;
-    const jsonPayload = Buffer.from(base64Url, "base64url").toString("utf8");
-    const claims = JSON.parse(jsonPayload);
+    const claims = jwt.verify(token, config.JWT_SECRET, {
+      algorithms: ["HS256", "HS384", "HS512"],
+    });
     if (!claims.sub || typeof claims.sub !== "string") return null;
     if (typeof claims.exp !== "number") return null;
     if (claims.exp <= Math.floor(Date.now() / 1000)) return null;
-    return claims;
-  } catch (e) {
+    return claims as unknown as TokenClaims;
+  } catch {
     return null;
   }
 }

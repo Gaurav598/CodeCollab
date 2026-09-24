@@ -8,8 +8,8 @@ import java.util.List;
 @ConfigurationProperties(prefix = "collabcode.ai")
 public class AiProperties {
 
-    private String defaultProvider = "local";
-    private List<String> fallbackOrder = new ArrayList<>(List.of("gemini", "openai", "claude", "deepseek", "local"));
+    private String defaultProvider = "gemini";
+    private List<String> fallbackOrder = new ArrayList<>(List.of("gemini", "openai", "claude", "deepseek"));
     private int timeoutMs = 12000;
     private int rateLimitPerMinute = 24;
     private int autocompleteRateLimitPerMinute = 90;

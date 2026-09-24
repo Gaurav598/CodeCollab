@@ -60,6 +60,11 @@ export function Sidebar({
     try {
       const data = await getRoomFiles(roomCode);
       setFiles(data);
+      const validIds = new Set(data.map(file => file.id));
+      const workspace = useWorkspaceStore.getState();
+      workspace.openTabs
+        .filter(tab => !validIds.has(tab.id))
+        .forEach(tab => workspace.closeTab(tab.id));
       onFilesLoaded?.(data);
     } catch (err) {
       console.error("[Sidebar] fetchFiles error:", err);
@@ -71,7 +76,7 @@ export function Sidebar({
 
   return (
     <>
-      <div className="w-[200px] min-w-[200px] border-r border-border bg-background flex flex-col h-full">
+      <div className="w-full min-w-0 border-r border-border bg-background flex flex-col h-full">
         <div className="py-4 px-4 border-b border-border flex items-center justify-start bg-background w-full">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary shadow-sm border border-primary/20">

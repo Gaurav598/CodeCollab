@@ -29,13 +29,38 @@ public class InternalController {
         return ResponseEntity.ok(Map.of("allowed", true));
     }
 
-    /** PUT /internal/files/:fileId/content */
-    @PutMapping("/files/{fileId}/content")
-    public ResponseEntity<Map<String, Object>> updateFileContent(
+    /** GET /internal/validate-collaboration?roomId=&fileId=&userId= */
+    @GetMapping("/validate-collaboration")
+    public ResponseEntity<Map<String, Object>> validateCollaboration(
+            @RequestParam UUID roomId,
+            @RequestParam UUID fileId,
+            @RequestParam UUID userId) {
+        return ResponseEntity.ok(internalService.validateCollaboration(roomId, fileId, userId));
+    }
+
+    /** GET /internal/files/:fileId/collaboration */
+    @GetMapping("/files/{fileId}/collaboration")
+    public ResponseEntity<Map<String, Object>> getCollaborationSnapshot(@PathVariable UUID fileId) {
+        return ResponseEntity.ok(internalService.getCollaborationSnapshot(fileId));
+    }
+
+    /** PUT /internal/files/:fileId/collaboration */
+    @PutMapping("/files/{fileId}/collaboration")
+    public ResponseEntity<Map<String, Object>> saveCollaborationSnapshot(
             @PathVariable UUID fileId,
-            @RequestBody Map<String, String> body) {
-        String content = body.getOrDefault("content", "");
-        internalService.updateFileContent(fileId, content);
-        return ResponseEntity.ok(Map.of("message", "Content updated"));
+            @RequestBody Map<String, Object> body) {
+        UUID roomId;
+        long expectedVersion;
+        try {
+            roomId = UUID.fromString(String.valueOf(body.get("roomId")));
+            expectedVersion = Long.parseLong(String.valueOf(body.get("expectedVersion")));
+        } catch (RuntimeException ex) {
+            throw com.collabcode.common.exception.ApiException.badRequest(
+                    "INVALID_SNAPSHOT", "roomId and expectedVersion are required");
+        }
+        String state = body.get("state") instanceof String value ? value : null;
+        String content = body.get("content") instanceof String value ? value : "";
+        return ResponseEntity.ok(internalService.saveCollaborationSnapshot(
+                fileId, roomId, expectedVersion, state, content));
     }
 }

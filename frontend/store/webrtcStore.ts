@@ -6,6 +6,8 @@ interface WebRTCState {
     localStream: MediaStream | null;
     remoteStreams: Record<string, MediaStream>; // keyed by userId
     peerConnections: Record<string, RTCPeerConnection>; // keyed by userId
+    peerMediaSenders: Record<string, PeerMediaSenders>;
+    remoteMediaMids: Record<string, MediaMids>;
     remoteVideoStates: Record<string, boolean>;
     remoteAudioStates: Record<string, boolean>;
     isAudioMuted: boolean;
@@ -24,20 +26,47 @@ interface WebRTCState {
     setRemoteScreenShare: (userId: string, isSharing: boolean) => void;
     addPeerConnection: (userId: string, pc: RTCPeerConnection) => void;
     removePeerConnection: (userId: string) => void;
+    setPeerMediaSenders: (userId: string, senders: PeerMediaSenders) => void;
+    setRemoteMediaMids: (userId: string, mids: MediaMids) => void;
+    attachLocalTracks: (userId: string, mids: MediaMids) => Promise<void>;
+    cleanupLocalMedia: () => void;
     setRemoteVideoState: (userId: string, isMuted: boolean) => void;
     setRemoteAudioState: (userId: string, isMuted: boolean) => void;
     createPeerConnection: (targetUserId: string, isInitiator: boolean, roomId: string) => RTCPeerConnection;
     remoteScreenShareIntents: Record<string, boolean>;
 }
 
-const ICE_SERVERS = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-};
+export interface MediaMids {
+    audio?: string | null;
+    camera?: string | null;
+    screen?: string | null;
+}
+
+interface PeerMediaSenders {
+    audio?: RTCRtpSender;
+    camera?: RTCRtpSender;
+    screen?: RTCRtpSender;
+}
+
+function iceConfiguration(): RTCConfiguration {
+    const iceServers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+    const turnUrl = process.env.NEXT_PUBLIC_TURN_URL;
+    if (turnUrl) {
+        iceServers.push({
+            urls: turnUrl.split(',').map(value => value.trim()).filter(Boolean),
+            username: process.env.NEXT_PUBLIC_TURN_USERNAME,
+            credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL,
+        });
+    }
+    return { iceServers };
+}
 
 export const useWebRTCStore = create<WebRTCState>((set, get) => ({
     localStream: null,
     remoteStreams: {},
     peerConnections: {},
+    peerMediaSenders: {},
+    remoteMediaMids: {},
     remoteVideoStates: {},
     remoteAudioStates: {},
     isAudioMuted: true,
@@ -57,6 +86,8 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
     }),
 
     removeRemoteStream: (userId) => set((state) => {
+        state.remoteStreams[userId]?.getTracks().forEach(track => track.stop());
+        state.remoteScreenStreams[userId]?.getTracks().forEach(track => track.stop());
         const newStreams = { ...state.remoteStreams };
         delete newStreams[userId];
         const newScreenStreams = { ...state.remoteScreenStreams };
@@ -73,8 +104,60 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
         const pc = newPCs[userId];
         if (pc) pc.close();
         delete newPCs[userId];
-        return { peerConnections: newPCs };
+        const senders = { ...state.peerMediaSenders };
+        const mids = { ...state.remoteMediaMids };
+        const videoStates = { ...state.remoteVideoStates };
+        const audioStates = { ...state.remoteAudioStates };
+        delete senders[userId];
+        delete mids[userId];
+        delete videoStates[userId];
+        delete audioStates[userId];
+        return {
+            peerConnections: newPCs,
+            peerMediaSenders: senders,
+            remoteMediaMids: mids,
+            remoteVideoStates: videoStates,
+            remoteAudioStates: audioStates,
+        };
     }),
+
+    setPeerMediaSenders: (userId, senders) => set(state => ({
+        peerMediaSenders: { ...state.peerMediaSenders, [userId]: senders }
+    })),
+
+    setRemoteMediaMids: (userId, mids) => set(state => ({
+        remoteMediaMids: { ...state.remoteMediaMids, [userId]: mids }
+    })),
+
+    attachLocalTracks: async (userId, mids) => {
+        const pc = get().peerConnections[userId];
+        if (!pc) return;
+        const byMid = new Map(pc.getTransceivers().map(transceiver => [transceiver.mid, transceiver]));
+        const audio = mids.audio ? byMid.get(mids.audio)?.sender : undefined;
+        const camera = mids.camera ? byMid.get(mids.camera)?.sender : undefined;
+        const screen = mids.screen ? byMid.get(mids.screen)?.sender : undefined;
+        const localStream = get().localStream;
+        const localScreenStream = get().localScreenStream;
+        await Promise.all([
+            audio?.replaceTrack(localStream?.getAudioTracks()[0] ?? null),
+            camera?.replaceTrack(localStream?.getVideoTracks()[0] ?? null),
+            screen?.replaceTrack(localScreenStream?.getVideoTracks()[0] ?? null),
+        ].filter(Boolean));
+        get().setPeerMediaSenders(userId, { audio, camera, screen });
+    },
+
+    cleanupLocalMedia: () => {
+        const { localStream, localScreenStream } = get();
+        localStream?.getTracks().forEach(track => track.stop());
+        localScreenStream?.getTracks().forEach(track => track.stop());
+        set({
+            localStream: null,
+            localScreenStream: null,
+            isAudioMuted: true,
+            isVideoMuted: true,
+            isScreenSharing: false,
+        });
+    },
 
     setRemoteVideoState: (userId, isMuted) => {
         set(state => ({
@@ -88,41 +171,39 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
     },
 
     createPeerConnection: (targetUserId, isInitiator, roomId) => {
-        const pc = new RTCPeerConnection(ICE_SERVERS);
+        const pc = new RTCPeerConnection(iceConfiguration());
         const { localStream, addRemoteStream } = get();
+
+        const senders: PeerMediaSenders = {};
 
         if (isInitiator) {
             const audioTrack = localStream?.getTracks().find(t => t.kind === 'audio');
             if (audioTrack) {
-                pc.addTransceiver(audioTrack, { direction: 'sendrecv', streams: [localStream!] });
+                senders.audio = pc.addTransceiver(audioTrack, { direction: 'sendrecv', streams: [localStream!] }).sender;
             } else {
-                pc.addTransceiver('audio', { direction: 'sendrecv' });
+                senders.audio = pc.addTransceiver('audio', { direction: 'sendrecv' }).sender;
             }
 
             const videoTrack = localStream?.getTracks().find(t => t.kind === 'video');
             if (videoTrack) {
-                pc.addTransceiver(videoTrack, { direction: 'sendrecv', streams: [localStream!] });
+                senders.camera = pc.addTransceiver(videoTrack, { direction: 'sendrecv', streams: [localStream!] }).sender;
             } else {
-                pc.addTransceiver('video', { direction: 'sendrecv' });
+                senders.camera = pc.addTransceiver('video', { direction: 'sendrecv' }).sender;
             }
 
             const localScreenStream = get().localScreenStream;
             const screenTrack = localScreenStream?.getVideoTracks()[0];
             if (screenTrack) {
-                pc.addTransceiver(screenTrack, { direction: 'sendrecv', streams: [localScreenStream!] });
+                senders.screen = pc.addTransceiver(screenTrack, { direction: 'sendrecv', streams: [localScreenStream!] }).sender;
             } else {
-                pc.addTransceiver('video', { direction: 'sendrecv' });
+                senders.screen = pc.addTransceiver('video', { direction: 'sendrecv' }).sender;
             }
+            get().setPeerMediaSenders(targetUserId, senders);
         }
 
-        // Handle remote tracks — detect if it's a screen share (display surface)
-        // Handle remote tracks — map based on transceiver index
         pc.ontrack = (event) => {
-            const transceivers = pc.getTransceivers();
-            const index = transceivers.indexOf(event.transceiver);
-            
-            // Ignore event.streams to prevent browser from accidentally grouping screen share with camera
-            if (index === 2) {
+            const screenMid = get().remoteMediaMids[targetUserId]?.screen;
+            if (screenMid && event.transceiver.mid === screenMid) {
                 const currentStream = get().remoteScreenStreams[targetUserId];
                 const tracks = currentStream ? currentStream.getTracks() : [];
                 if (!tracks.includes(event.track)) {
@@ -155,17 +236,43 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
             }
         };
 
+        let disconnectedTimer: ReturnType<typeof setTimeout> | null = null;
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === 'connected') {
+                if (disconnectedTimer) clearTimeout(disconnectedTimer);
+                disconnectedTimer = null;
+            } else if (pc.connectionState === 'disconnected') {
+                if (disconnectedTimer) clearTimeout(disconnectedTimer);
+                disconnectedTimer = setTimeout(() => {
+                    if (pc.connectionState === 'disconnected' && isInitiator) {
+                        pc.restartIce();
+                    }
+                }, 3000);
+            } else if (pc.connectionState === 'failed' && isInitiator) {
+                pc.restartIce();
+            } else if (pc.connectionState === 'closed') {
+                if (disconnectedTimer) clearTimeout(disconnectedTimer);
+            }
+        };
+
         // Handle negotiation needed
         pc.onnegotiationneeded = async () => {
             if (isInitiator) {
                 try {
                     const offer = await pc.createOffer();
                     await pc.setLocalDescription(offer);
+                    const transceivers = pc.getTransceivers();
+                    const mids: MediaMids = {
+                        audio: transceivers.find(t => t.sender === senders.audio)?.mid,
+                        camera: transceivers.find(t => t.sender === senders.camera)?.mid,
+                        screen: transceivers.find(t => t.sender === senders.screen)?.mid,
+                    };
+                    get().setRemoteMediaMids(targetUserId, mids);
                     stompService.publish('/app/webrtc.signal', {
                         targetUserId,
                         roomId,
                         type: 'OFFER',
-                        payload: pc.localDescription
+                        payload: { description: pc.localDescription, mediaMids: mids }
                     });
                 } catch (err) {
                     console.error('Failed to create offer', err);
@@ -185,18 +292,15 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 const newAudioTrack = newStream.getAudioTracks()[0];
                 let updatedStream = newStream;
                 if (localStream) {
+                    localStream.getAudioTracks().forEach(track => track.stop());
                     updatedStream = new MediaStream([
                         ...localStream.getVideoTracks(),
                         newAudioTrack
                     ]);
                 }
-                const currentPCs = get().peerConnections;
-                Object.values(currentPCs).forEach(pc => {
+                Object.entries(get().peerConnections).forEach(([userId, pc]) => {
                     if (pc.signalingState === 'closed') return;
-                    const transceiver = pc.getTransceivers()[0];
-                    if (transceiver && transceiver.sender) {
-                        transceiver.sender.replaceTrack(newAudioTrack).catch(e => console.warn(e));
-                    }
+                    get().peerMediaSenders[userId]?.audio?.replaceTrack(newAudioTrack).catch(e => console.warn(e));
                 });
                 set({ isAudioMuted: false, localStream: updatedStream });
             } catch (err) {
@@ -214,13 +318,9 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 });
                 updatedStream = new MediaStream(localStream.getVideoTracks());
             }
-            const currentPCs = get().peerConnections;
-            Object.values(currentPCs).forEach(pc => {
+            Object.entries(get().peerConnections).forEach(([userId, pc]) => {
                 if (pc.signalingState === 'closed') return;
-                const transceiver = pc.getTransceivers()[0];
-                if (transceiver && transceiver.sender) {
-                    transceiver.sender.replaceTrack(null).catch(e => console.warn(e));
-                }
+                get().peerMediaSenders[userId]?.audio?.replaceTrack(null).catch(e => console.warn(e));
             });
             set({ isAudioMuted: true, localStream: updatedStream });
         }
@@ -234,18 +334,15 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 const newVideoTrack = newStream.getVideoTracks()[0];
                 let updatedStream = newStream;
                 if (localStream) {
+                    localStream.getVideoTracks().forEach(track => track.stop());
                     updatedStream = new MediaStream([
                         ...localStream.getAudioTracks(),
                         newVideoTrack
                     ]);
                 }
-                const currentPCs = get().peerConnections;
-                Object.values(currentPCs).forEach(pc => {
+                Object.entries(get().peerConnections).forEach(([userId, pc]) => {
                     if (pc.signalingState === 'closed') return;
-                    const transceiver = pc.getTransceivers()[1];
-                    if (transceiver && transceiver.sender) {
-                        transceiver.sender.replaceTrack(newVideoTrack).catch(e => console.warn(e));
-                    }
+                    get().peerMediaSenders[userId]?.camera?.replaceTrack(newVideoTrack).catch(e => console.warn(e));
                 });
                 set({ isVideoMuted: false, localStream: updatedStream });
             } catch (err) {
@@ -263,13 +360,9 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 });
                 updatedStream = new MediaStream(localStream.getAudioTracks());
             }
-            const currentPCs = get().peerConnections;
-            Object.values(currentPCs).forEach(pc => {
+            Object.entries(get().peerConnections).forEach(([userId, pc]) => {
                 if (pc.signalingState === 'closed') return;
-                const transceiver = pc.getTransceivers()[1];
-                if (transceiver && transceiver.sender) {
-                    transceiver.sender.replaceTrack(null).catch(e => console.warn(e));
-                }
+                get().peerMediaSenders[userId]?.camera?.replaceTrack(null).catch(e => console.warn(e));
             });
             set({ isVideoMuted: true, localStream: updatedStream });
         }
@@ -278,18 +371,10 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
     startScreenShare: async (onStop?: () => void) => {
         try {
             const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            const { peerConnections } = get();
-            
             const screenTrack = screenStream.getVideoTracks()[0];
-            const currentPCs = get().peerConnections;
-            
-            // Replace video track in all peer connections for transceiver index 2
-            Object.values(currentPCs).forEach(pc => {
+            Object.entries(get().peerConnections).forEach(([userId, pc]) => {
                 if (pc.signalingState === 'closed') return;
-                const transceiver = pc.getTransceivers()[2];
-                if (transceiver && transceiver.sender) {
-                    transceiver.sender.replaceTrack(screenTrack).catch(e => console.warn(e));
-                }
+                get().peerMediaSenders[userId]?.screen?.replaceTrack(screenTrack).catch(e => console.warn(e));
             });
 
             // Handle when user clicks "Stop sharing" in the browser UI
@@ -301,12 +386,18 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
             set({ isScreenSharing: true, localScreenStream: screenStream });
         } catch (err) {
             console.warn('Failed to start screen share', err);
+            setTimeout(() => {
+                useModalStore.getState().showAlert(
+                    "Screen Share Error",
+                    "Screen sharing could not start. Check browser permission and try again."
+                );
+            }, 0);
         }
     },
 
     stopScreenShare: async () => {
         try {
-            const { peerConnections, localScreenStream } = get();
+            const { localScreenStream } = get();
             
             // Stop the screen share tracks
             if (localScreenStream) {
@@ -316,13 +407,9 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
                 });
             }
             
-            const currentPCs = get().peerConnections;
-            Object.values(currentPCs).forEach(pc => {
+            Object.entries(get().peerConnections).forEach(([userId, pc]) => {
                 if (pc.signalingState === 'closed') return;
-                const transceiver = pc.getTransceivers()[2];
-                if (transceiver && transceiver.sender) {
-                    transceiver.sender.replaceTrack(null).catch(e => console.warn(e));
-                }
+                get().peerMediaSenders[userId]?.screen?.replaceTrack(null).catch(e => console.warn(e));
             });
 
             set({ isScreenSharing: false, localScreenStream: null });
@@ -333,11 +420,11 @@ export const useWebRTCStore = create<WebRTCState>((set, get) => ({
 
     setRemoteScreenShare: (userId, isSharing) => set((state) => {
         const intents = { ...state.remoteScreenShareIntents, [userId]: isSharing };
+        if (!isSharing) delete intents[userId];
         
-        if (isSharing) {
-            return { remoteScreenShareIntents: intents, isRemoteScreenSharing: true };
-        } else {
-            return { remoteScreenShareIntents: intents, isRemoteScreenSharing: false };
-        }
+        return {
+            remoteScreenShareIntents: intents,
+            isRemoteScreenSharing: Object.values(intents).some(Boolean)
+        };
     })
 }));

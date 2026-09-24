@@ -1,5 +1,7 @@
 # CodeCollab Engineering Audit Report
 
+> Historical baseline: this audit predates the production-collaboration upgrade on `codex/production-collaboration-upgrade`. In particular, the orphaned-persistence, decoded-only JWT, transceiver-index, missing Redis fan-out and missing TURN-configuration findings were addressed by the current working-tree implementation. Use `ARCHITECTURE.md`, `COLLABORATION_PERSISTENCE.md` and `SECURITY_REVIEW.md` for current behavior.
+
 # 1. Executive Summary
 - **What is CodeCollab**: A real-time collaborative development environment.
 - **Business domain**: Developer Tools / B2B SaaS.

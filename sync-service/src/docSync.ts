@@ -72,3 +72,33 @@ export async function closeDocRedis(): Promise<void> {
   });
   await Promise.all([pub.quit(), sub.quit()]);
 }
+
+const recoveryKey = (docName: string) => `yjs:recovery:${docName}`;
+
+/** Redis is a recovery cache during a MongoDB outage, not durable storage. */
+export async function cacheRecoverySnapshot(docName: string, state: string): Promise<boolean> {
+  try {
+    await pub.set(recoveryKey(docName), state, "EX", 7 * 24 * 60 * 60);
+    return true;
+  } catch (error) {
+    console.error(`[DocSync] Failed to cache recovery state for ${docName}:`, error);
+    return false;
+  }
+}
+
+export async function loadRecoverySnapshot(docName: string): Promise<string | null> {
+  try {
+    return await pub.get(recoveryKey(docName));
+  } catch (error) {
+    console.error(`[DocSync] Failed to load recovery state for ${docName}:`, error);
+    return null;
+  }
+}
+
+export async function clearRecoverySnapshot(docName: string): Promise<void> {
+  try {
+    await pub.del(recoveryKey(docName));
+  } catch (error) {
+    console.error(`[DocSync] Failed to clear recovery state for ${docName}:`, error);
+  }
+}

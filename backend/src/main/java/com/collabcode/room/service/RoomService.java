@@ -142,9 +142,11 @@ public class RoomService {
         roomMemberRepository.save(RoomMember.create(room.getId(), userId, MemberRole.pending));
         
         // Notify owner (legacy for toasts)
-        messagingTemplate.convertAndSend(
-            "/topic/room." + room.getId() + ".approval",
-            Map.of("event", "user.join_request", "userId", userId.toString(), "username", user.getUsername())
+        messagingTemplate.convertAndSendToUser(
+            room.getOwnerId().toString(),
+            "/queue/room.approval",
+            Map.of("event", "user.join_request", "roomId", room.getId().toString(),
+                    "userId", userId.toString(), "username", user.getUsername())
         );
 
         broadcastMembershipUpdated(room.getId(), userId, MemberRole.pending, "PENDING");
@@ -167,9 +169,11 @@ public class RoomService {
         member.setRole(newRole);
         roomMemberRepository.save(member);
         
-        messagingTemplate.convertAndSend(
-            "/topic/room." + room.getId() + ".approval",
-            Map.of("event", "user.approved", "userId", targetUserId.toString(), "role", newRole.name())
+        messagingTemplate.convertAndSendToUser(
+            targetUserId.toString(),
+            "/queue/room.approval",
+            Map.of("event", "user.approved", "roomId", room.getId().toString(),
+                    "userId", targetUserId.toString(), "role", newRole.name())
         );
         
         broadcastMembershipUpdated(room.getId(), targetUserId, newRole, "ACTIVE");
@@ -271,9 +275,7 @@ public class RoomService {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private void broadcastMembershipUpdated(UUID roomId, UUID targetUserId, MemberRole role, String status) {
-        messagingTemplate.convertAndSend(
-            "/topic/room." + roomId + ".workspace",
-            Map.of(
+        Map<String, Object> event = Map.of(
                 "event", "MEMBERSHIP_UPDATED",
                 "roomId", roomId.toString(),
                 "memberId", targetUserId.toString(),
@@ -282,8 +284,9 @@ public class RoomService {
                 "membershipStatus", status,
                 "version", System.currentTimeMillis(),
                 "timestamp", Instant.now().toString()
-            )
-        );
+            );
+        messagingTemplate.convertAndSend("/topic/room." + roomId + ".workspace", event);
+        messagingTemplate.convertAndSendToUser(targetUserId.toString(), "/queue/membership", event);
     }
 
     private Room findByCode(String roomCode) {

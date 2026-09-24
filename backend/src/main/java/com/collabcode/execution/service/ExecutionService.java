@@ -41,8 +41,6 @@ public class ExecutionService {
 
     
     public RunCodeResponse runCode(RunCodeRequest request, UUID userId) {
-        rateLimiter.checkLimit(userId);
-
         if (!SUPPORTED_LANGUAGES.contains(request.language().toLowerCase())) {
             throw ApiException.badRequest("UNSUPPORTED_LANGUAGE",
                     "Language not supported. Supported: " + String.join(", ", SUPPORTED_LANGUAGES));
@@ -52,6 +50,7 @@ public class ExecutionService {
                 .orElseThrow(() -> ApiException.notFound("FILE_NOT_FOUND", "File not found"));
 
         roomAccessService.requireEditor(file.getRoomId(), userId);
+        rateLimiter.checkLimit(userId, file.getRoomId());
 
         SandboxExecuteResult result = executionEngineClient.execute(
                 request.language().toLowerCase(),

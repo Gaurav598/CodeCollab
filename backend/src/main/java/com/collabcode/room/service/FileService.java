@@ -53,6 +53,12 @@ public class FileService {
         UUID roomId = file.getRoomId();
         roomAccessService.requireEditor(roomId, userId);
 
+        if (content != null) {
+            throw ApiException.conflict(
+                    "COLLABORATIVE_CONTENT_MANAGED_BY_SYNC",
+                    "File content is managed by the collaborative sync service; PATCH may only change path or language");
+        }
+
         boolean metadataChanged = false;
 
         if (newPath != null && !newPath.isBlank()) {
@@ -74,14 +80,8 @@ public class FileService {
             }
         }
         
-        // Handle frontend debounced saves — content-only patches do NOT broadcast
-        if (content != null) {
-            file.setContent(content);
-        }
-        
         fileRepository.save(file);
 
-        // Broadcast only on path/language change, not on every content autosave
         if (metadataChanged) {
             broadcastWorkspaceChange(roomId);
         }
@@ -97,14 +97,6 @@ public class FileService {
         roomAccessService.requireEditor(roomId, userId);
         fileRepository.delete(file);
         broadcastWorkspaceChange(roomId);
-    }
-
-    
-    @Transactional
-    public void updateContent(UUID fileId, String content) {
-        FileEntry file = findFile(fileId);
-        file.setContent(content);
-        fileRepository.save(file);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

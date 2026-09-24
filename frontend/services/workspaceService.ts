@@ -87,13 +87,6 @@ export async function renameFile(fileId: string, newPath: string, newLanguage?: 
   });
 }
 
-export async function updateFileContent(fileId: string, content: string): Promise<FileEntry> {
-  return apiFetch<FileEntry>(`/files/${fileId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ content }),
-  });
-}
-
 export async function deleteFile(fileId: string): Promise<{ message: string }> {
   return apiFetch(`/files/${fileId}`, { method: "DELETE" });
 }

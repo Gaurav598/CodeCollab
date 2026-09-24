@@ -9,6 +9,7 @@ interface PresencePanelProps {
   onLanguageChange?: (language: string) => void;
   onSave?: (showSavedCodes: boolean) => void;
   isSaving?: boolean;
+  syncStatus?: 'connecting' | 'syncing' | 'live' | 'offline';
   isRightPanelOpen?: boolean;
   onToggleRightPanel?: () => void;
 }
@@ -21,7 +22,7 @@ const LANGUAGES = [
   { id: 'python', name: 'Python' },
 ];
 
-export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isSaving, isRightPanelOpen, onToggleRightPanel }: PresencePanelProps) {
+export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isSaving, syncStatus = 'offline', isRightPanelOpen, onToggleRightPanel }: PresencePanelProps) {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -84,6 +85,11 @@ export function PresencePanel({ users, activeFile, onLanguageChange, onSave, isS
       )}
 
       <div className="flex-1" />
+
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Realtime document connection status">
+        <span className={`h-2 w-2 rounded-full ${syncStatus === 'live' ? 'bg-green-500' : syncStatus === 'offline' ? 'bg-red-500' : 'bg-amber-500 animate-pulse'}`} />
+        <span>{syncStatus === 'live' ? 'Live sync' : syncStatus === 'syncing' ? 'Syncing…' : syncStatus === 'connecting' ? 'Reconnecting…' : 'Offline'}</span>
+      </div>
       
       {activeFile && (
         <div className="flex items-center space-x-3 mr-4">

@@ -22,6 +22,20 @@ public class FileEntry {
 
     private String content = "";
 
+    /**
+     * Complete Yjs state encoded with Y.encodeStateAsUpdate and then Base64 encoded.
+     * The plain text content field is only a searchable/readable projection; this is
+     * the authoritative collaborative state.
+     */
+    @Field("yjs_state")
+    private String yjsState;
+
+    @Field("collaboration_version")
+    private long collaborationVersion = 0L;
+
+    @Field("collaboration_updated_at")
+    private Instant collaborationUpdatedAt;
+
     private String language = "plaintext";
 
     @Field("created_at")
@@ -41,6 +55,9 @@ public class FileEntry {
     public UUID getRoomId() { return roomId; }
     public String getPath() { return path; }
     public String getContent() { return content; }
+    public String getYjsState() { return yjsState; }
+    public long getCollaborationVersion() { return collaborationVersion; }
+    public Instant getCollaborationUpdatedAt() { return collaborationUpdatedAt; }
     public String getLanguage() { return language; }
     public Instant getCreatedAt() { return createdAt; }
 

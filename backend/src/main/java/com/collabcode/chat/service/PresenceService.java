@@ -19,8 +19,9 @@ public class PresenceService {
     private final SimpMessagingTemplate messagingTemplate;
     private final ChatService chatService;
 
-    // RoomId -> Set of UserIds
-    private final Map<UUID, Set<UUID>> roomUsers = new ConcurrentHashMap<>();
+    // RoomId -> UserId -> active STOMP session ids. Multiple tabs for one user
+    // must not make the user disappear when only one tab disconnects.
+    private final Map<UUID, Map<UUID, Set<String>>> roomUserSessions = new ConcurrentHashMap<>();
     
     // SessionId -> UserDetails
     private final Map<String, CollabUserDetails> sessionUsers = new ConcurrentHashMap<>();
@@ -34,12 +35,17 @@ public class PresenceService {
     }
 
     public void userJoined(String sessionId, UUID roomId, CollabUserDetails user) {
+        UUID previousRoom = sessionRooms.get(sessionId);
+        if (previousRoom != null && !previousRoom.equals(roomId)) userLeft(sessionId);
         sessionUsers.put(sessionId, user);
         sessionRooms.put(sessionId, roomId);
 
-        roomUsers.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(user.getId());
-
-        broadcastPresence(roomId, user, "JOINED");
+        Set<String> sessions = roomUserSessions
+                .computeIfAbsent(roomId, ignored -> new ConcurrentHashMap<>())
+                .computeIfAbsent(user.getId(), ignored -> ConcurrentHashMap.newKeySet());
+        boolean firstSession = sessions.isEmpty();
+        sessions.add(sessionId);
+        if (firstSession) broadcastPresence(roomId, user, "JOINED");
     }
 
     public void userLeft(String sessionId) {
@@ -47,21 +53,27 @@ public class PresenceService {
         UUID roomId = sessionRooms.remove(sessionId);
 
         if (user != null && roomId != null) {
-            Set<UUID> usersInRoom = roomUsers.get(roomId);
+            Map<UUID, Set<String>> usersInRoom = roomUserSessions.get(roomId);
             if (usersInRoom != null) {
-                usersInRoom.remove(user.getId());
+                Set<String> sessions = usersInRoom.get(user.getId());
+                if (sessions != null) sessions.remove(sessionId);
+                boolean lastUserSession = sessions == null || sessions.isEmpty();
+                if (lastUserSession) {
+                    usersInRoom.remove(user.getId());
+                    broadcastPresence(roomId, user, "LEFT");
+                }
                 if (usersInRoom.isEmpty()) {
-                    roomUsers.remove(roomId);
+                    roomUserSessions.remove(roomId);
                     // Clear ephemeral chat messages when the last user leaves
                     chatService.clearRoomMessages(roomId);
                 }
             }
-            broadcastPresence(roomId, user, "LEFT");
         }
     }
 
     public Set<UUID> getActiveUsersInRoom(UUID roomId) {
-        return roomUsers.getOrDefault(roomId, Set.of());
+        Map<UUID, Set<String>> users = roomUserSessions.get(roomId);
+        return users == null ? Set.of() : Set.copyOf(users.keySet());
     }
 
     private void broadcastPresence(UUID roomId, CollabUserDetails user, String status) {
@@ -83,4 +95,3 @@ public class PresenceService {
         }
     }
 }
-

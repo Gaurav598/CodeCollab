@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.collabcode.config.AiProperties;
+import com.collabcode.ai.dto.AiMessage;
 
 @Service
 public class AiFeatureService {
@@ -23,11 +25,16 @@ public class AiFeatureService {
     private final AiContextService contextService;
     private final AiGatewayService gatewayService;
     private final AiRateLimiter rateLimiter;
+    private final AiPromptSanitizer sanitizer;
+    private final AiProperties properties;
 
-    public AiFeatureService(AiContextService contextService, AiGatewayService gatewayService, AiRateLimiter rateLimiter) {
+    public AiFeatureService(AiContextService contextService, AiGatewayService gatewayService,
+                            AiRateLimiter rateLimiter, AiPromptSanitizer sanitizer, AiProperties properties) {
         this.contextService = contextService;
         this.gatewayService = gatewayService;
         this.rateLimiter = rateLimiter;
+        this.sanitizer = sanitizer;
+        this.properties = properties;
     }
 
     public AutocompleteResponse autocomplete(AiRequest request, UUID userId) {
@@ -65,9 +72,29 @@ public class AiFeatureService {
                 context.selection(),
                 context.instruction(),
                 context.contextFiles(),
-                request.conversation() == null ? List.of() : request.conversation()
+                sanitizeConversation(request.conversation(), context)
         );
         return gatewayService.generate(gatewayRequest);
+    }
+
+    private List<AiMessage> sanitizeConversation(List<AiMessage> conversation,
+                                                 AiContextService.ContextEnvelope context) {
+        if (conversation == null || conversation.isEmpty()) return List.of();
+        int used = context.language().length() + context.path().length() + context.code().length()
+                + context.selection().length() + context.instruction().length()
+                + context.contextFiles().stream().mapToInt(file -> file.content().length()).sum();
+        int remaining = Math.max(0, properties.getMaxPromptChars() - used);
+        List<AiMessage> safe = new ArrayList<>();
+        int start = Math.max(0, conversation.size() - 12);
+        for (int index = start; index < conversation.size() && remaining > 0; index++) {
+            AiMessage message = conversation.get(index);
+            if (message == null || !("user".equals(message.role()) || "assistant".equals(message.role()))) continue;
+            String content = sanitizer.sanitize(message.content());
+            if (content.length() > remaining) content = content.substring(0, remaining) + "\n[TRUNCATED]";
+            safe.add(new AiMessage(message.role(), content));
+            remaining -= Math.min(remaining, content.length());
+        }
+        return safe;
     }
 
     private Builder base(AiFeature feature, AiGatewayResult result, AiContextService.ContextEnvelope context) {

@@ -37,6 +37,9 @@ public class ExecutionEngineClient {
     }
 
     public SandboxExecuteResult execute(String language, String sourceCode, String stdin, int timeoutMs) {
+        if (executionEngineProperties.getEngineUrl() == null || executionEngineProperties.getEngineUrl().isBlank()) {
+            return errorResult("Execution engine is not configured");
+        }
         String url = executionEngineProperties.getEngineUrl() + "/execute";
 
         HttpHeaders headers = new HttpHeaders();
@@ -47,7 +50,7 @@ public class ExecutionEngineClient {
             headers.setBearerAuth(apiKey);
         }
 
-        int safeTimeout = Math.min(timeoutMs, 3000);
+        int safeTimeout = Math.min(Math.max(timeoutMs, 250), executionEngineProperties.getMaxTimeoutMs());
         Map<String, Object> body = Map.of(
                 "language", language,
                 "version", "*",
@@ -72,6 +75,17 @@ public class ExecutionEngineClient {
                  return errorResult("Engine Error: " + respBody.get("message"));
             }
 
+            // Native CollabCode execution-engine contract.
+            if (respBody.containsKey("stdout") || respBody.containsKey("timedOut")) {
+                String stdout = stringValue(respBody.get("stdout"));
+                String stderr = stringValue(respBody.get("stderr"));
+                int exitCode = respBody.get("exitCode") instanceof Number number ? number.intValue() : 1;
+                long executionTime = respBody.get("executionTimeMs") instanceof Number number ? number.longValue() : 0L;
+                boolean timedOut = Boolean.TRUE.equals(respBody.get("timedOut"));
+                String error = respBody.get("error") == null ? null : respBody.get("error").toString();
+                return new SandboxExecuteResult(stdout, stderr, exitCode, executionTime, timedOut, error);
+            }
+
             String stdout = "";
             String stderr = "";
             int exitCode = 0;
@@ -84,6 +98,7 @@ public class ExecutionEngineClient {
                 }
             }
 
+            boolean timedOut = false;
             if (respBody.containsKey("run")) {
                 Map<String, Object> run = (Map<String, Object>) respBody.get("run");
                 Object outObj = run.get("stdout");
@@ -97,10 +112,12 @@ public class ExecutionEngineClient {
                 } else if (run.get("signal") != null) {
                     exitCode = 1;
                     stderr += "\nTerminated by signal: " + run.get("signal");
+                    timedOut = "SIGKILL".equalsIgnoreCase(run.get("signal").toString());
                 }
             }
 
-            return new SandboxExecuteResult(stdout, stderr, exitCode, 0, false, null);
+            return new SandboxExecuteResult(stdout, stderr, exitCode, 0, timedOut,
+                    timedOut ? "EXECUTION_TIMEOUT" : null);
         } catch (RestClientException ex) {
             return errorResult("Execution engine unavailable: " + ex.getMessage());
         }
@@ -108,5 +125,9 @@ public class ExecutionEngineClient {
 
     private SandboxExecuteResult errorResult(String message) {
         return new SandboxExecuteResult("", message, 1, 0, false, "ENGINE_UNAVAILABLE");
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : value.toString();
     }
 }

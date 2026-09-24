@@ -9,7 +9,7 @@ import java.util.UUID;
 public record RunCodeRequest(
         @NotNull UUID fileId,
         @NotBlank @Size(max = 65536) String code,
-        @NotBlank String language,
+        @NotBlank @Size(max = 32) String language,
         @Size(max = 8192) String stdin
 ) {
     public RunCodeRequest {

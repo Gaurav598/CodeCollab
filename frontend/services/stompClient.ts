@@ -1,5 +1,5 @@
 import { Client, IMessage } from '@stomp/stompjs';
-import { getAccessToken } from '@/services/authService';
+import { getAccessToken, subscribeAccessToken } from '@/services/authService';
 import { serviceConfig } from './config';
 
 class StompService {
@@ -7,6 +7,20 @@ class StompService {
     private activeSubscriptions: Map<string, { callbacks: Set<(msg: IMessage) => void>; subscription: any }> = new Map();
     private pendingSubscriptions: Array<{destination: string, callback: (msg: IMessage) => void}> = [];
     private pendingMessages: Array<{destination: string, body: any}> = [];
+    private connectedListeners = new Set<() => void>();
+    private joinedRooms = new Set<string>();
+
+    constructor() {
+        subscribeAccessToken(token => {
+            if (!token) {
+                this.disconnect();
+            } else if (this.client?.active) {
+                const previous = this.client;
+                this.client = null;
+                void previous.deactivate().then(() => this.connect());
+            }
+        });
+    }
 
     public connect() {
         if (this.client && this.client.active) return;
@@ -52,6 +66,9 @@ class StompService {
                     const msg = this.pendingMessages.shift();
                     if (msg) this.publish(msg.destination, msg.body);
                 }
+
+                this.joinedRooms.forEach(roomId => this.publish('/app/room.join', { roomId }));
+                this.connectedListeners.forEach(listener => listener());
             },
             onStompError: (frame) => {
                 console.error('[STOMP] Broker reported error: ' + frame.headers['message']);
@@ -73,6 +90,7 @@ class StompService {
             this.pendingSubscriptions = [];
             this.pendingMessages = [];
         }
+        this.joinedRooms.clear();
     }
 
     public subscribe(destination: string, callback: (message: IMessage) => void) {
@@ -144,9 +162,28 @@ class StompService {
                 headers: { 'content-type': 'application/json' }
             });
         } else {
-            console.warn(`[STOMP] Client disconnected, queueing message for ${destination}`);
-            this.pendingMessages.push({ destination, body });
+            const ephemeral = destination === '/app/webrtc.signal' || destination === '/app/video.presence';
+            if (!ephemeral) {
+                if (this.pendingMessages.length >= 200) this.pendingMessages.shift();
+                this.pendingMessages.push({ destination, body });
+            }
         }
+    }
+
+    public joinRoom(roomId: string) {
+        this.joinedRooms.add(roomId);
+        this.publish('/app/room.join', { roomId });
+    }
+
+    public leaveRoom(roomId: string) {
+        this.joinedRooms.delete(roomId);
+        this.publish('/app/room.leave', { roomId });
+    }
+
+    public onConnected(listener: () => void): () => void {
+        this.connectedListeners.add(listener);
+        if (this.client?.connected) queueMicrotask(listener);
+        return () => this.connectedListeners.delete(listener);
     }
 }
 

@@ -4,7 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/workspace/Sidebar";
 import { Tabs } from "@/components/workspace/Tabs";
-import { Save, Lock, LayoutDashboard, Code2, LogOut, Trash2 } from "lucide-react";
+import { Save, Lock, LayoutDashboard, Code2, LogOut, Trash2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import dynamic from "next/dynamic";
 
 const CollabEditor = dynamic(
@@ -20,6 +21,7 @@ import { useModalStore } from "@/store/modalStore";
 import { useChatStore } from "@/store/chatStore";
 import { stompService } from "@/services/stompClient";
 import { useWebRTCStore } from "@/store/webrtcStore";
+import { logout } from "@/services/authService";
 
 const CS_QUOTES = [
   "Talk is cheap. Show me the code. — Linus Torvalds",
@@ -52,16 +54,17 @@ function PendingScreen({ roomId, userId, onApproved }: { roomId: string; userId:
   }, []);
 
   useEffect(() => {
-    const dest = `/topic/room.${roomId}.approval`;
-    const sub = stompService.subscribe(dest, (msg) => {
+    const dest = `/user/queue/room.approval`;
+    const callback = (msg: import('@stomp/stompjs').IMessage) => {
       try {
         const body = JSON.parse(msg.body);
-        if (body.event === "user.approved" && body.userId === userId) {
+        if (body.event === "user.approved" && body.roomId === roomId && body.userId === userId) {
           onApproved(body.role);
         }
       } catch (e) {}
-    });
-    return () => stompService.unsubscribe(dest);
+    };
+    stompService.subscribe(dest, callback);
+    return () => stompService.unsubscribe(dest, callback);
   }, [roomId, userId]);
 
   return (
@@ -124,6 +127,8 @@ export default function RoomPage() {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const sidebarPanelRef = usePanelRef();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Clear stale tabs only if switching to a completely different room
   useEffect(() => {
@@ -177,8 +182,13 @@ export default function RoomPage() {
       }
     };
     
+    const privateDest = "/user/queue/membership";
     stompService.subscribe(dest, callback);
-    return () => stompService.unsubscribe(dest, callback);
+    stompService.subscribe(privateDest, callback);
+    return () => {
+      stompService.unsubscribe(dest, callback);
+      stompService.unsubscribe(privateDest, callback);
+    };
   }, [room?.id, user?.id]);
 
   useEffect(() => {
@@ -344,11 +354,37 @@ export default function RoomPage() {
   }
 
   return (
-    <div className="flex w-full h-full">
-      <Sidebar roomCode={room.roomCode} roomId={room.id} userRole={userRole} onFilesLoaded={setFiles} />
-      <div className="flex-1 flex flex-col min-w-0">
+    <Group orientation="horizontal" className="w-full h-full" id="workspace-layout">
+      <Panel
+        id="workspace-sidebar"
+        panelRef={sidebarPanelRef}
+        defaultSize="200px"
+        minSize="160px"
+        maxSize="420px"
+        collapsedSize="0px"
+        collapsible
+        groupResizeBehavior="preserve-pixel-size"
+        onResize={({ inPixels }) => setSidebarCollapsed(inPixels < 1)}
+      >
+        <Sidebar roomCode={room.roomCode} roomId={room.id} userRole={userRole} onFilesLoaded={setFiles} />
+      </Panel>
+      <Separator className="group relative w-1 bg-border/70 hover:bg-primary/70 focus-visible:bg-primary focus-visible:outline-none transition-colors cursor-col-resize">
+        <span className="absolute inset-y-0 -left-1 -right-1" />
+      </Separator>
+      <Panel id="workspace-main" minSize="400px">
+      <div className="h-full flex flex-col min-w-0">
         <div className="flex h-11 items-center justify-between border-b border-border bg-background/95 px-3">
-          <Tabs />
+          <div className="flex min-w-0 items-center">
+            <button
+              onClick={() => sidebarCollapsed ? sidebarPanelRef.current?.expand() : sidebarPanelRef.current?.collapse()}
+              className="mr-2 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title={sidebarCollapsed ? "Show workspace sidebar" : "Hide workspace sidebar"}
+              aria-label={sidebarCollapsed ? "Show workspace sidebar" : "Hide workspace sidebar"}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            </button>
+            <Tabs />
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => router.push("/dashboard")}
@@ -369,7 +405,11 @@ export default function RoomPage() {
             <ThemeToggle />
             <div className="group flex items-center relative overflow-hidden transition-all duration-300 w-[32px] hover:w-[90px] bg-muted/30 rounded-md border border-border ml-1">
               <button 
-                onClick={() => { clearAuth(); router.push('/login'); }}
+                onClick={async () => {
+                  await logout().catch(() => undefined);
+                  clearAuth();
+                  router.push('/login');
+                }}
                 className="flex items-center justify-start w-full h-8 px-2 gap-2 text-red-500 hover:text-red-400 transition-colors"
               >
                 <LogOut size={16} className="shrink-0" />
@@ -407,6 +447,7 @@ export default function RoomPage() {
         onRunCode={() => window.dispatchEvent(new Event("collabcode:run-active-file"))}
         onFocusAi={() => undefined}
       />
-    </div>
+      </Panel>
+    </Group>
   );
 }

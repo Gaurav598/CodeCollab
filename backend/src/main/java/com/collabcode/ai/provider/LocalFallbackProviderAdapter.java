@@ -14,7 +14,9 @@ public class LocalFallbackProviderAdapter implements AiProviderAdapter {
 
     @Override
     public boolean available() {
-        return true;
+        // Synthetic text must never be presented as a provider response. Keep
+        // this adapter disabled for compatibility with older configuration.
+        return false;
     }
 
     @Override

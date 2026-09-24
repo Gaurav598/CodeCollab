@@ -77,6 +77,19 @@ public abstract class AbstractHttpAiProviderAdapter implements AiProviderAdapter
         if (request.selection() != null && !request.selection().isBlank()) {
             prompt.append("Selection:\n```").append(request.language()).append('\n').append(request.selection()).append("\n```\n\n");
         }
+        if (request.conversation() != null && !request.conversation().isEmpty()) {
+            prompt.append("Conversation:\n");
+            request.conversation().forEach(message -> prompt
+                    .append(message.role()).append(": ").append(message.content()).append('\n'));
+            prompt.append('\n');
+        }
+        if (request.contextFiles() != null && !request.contextFiles().isEmpty()) {
+            prompt.append("Workspace context:\n");
+            request.contextFiles().forEach(file -> prompt
+                    .append("--- ").append(file.path()).append(" (").append(file.language()).append(") ---\n")
+                    .append(file.content()).append("\n"));
+            prompt.append('\n');
+        }
         prompt.append("Current file:\n```").append(request.language()).append('\n').append(request.code()).append("\n```\n");
         return prompt.toString();
     }

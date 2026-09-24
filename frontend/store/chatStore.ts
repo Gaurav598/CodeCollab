@@ -91,7 +91,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     subscribeToRoom: (roomId) => {
-        stompService.publish('/app/room.join', { roomId });
+        stompService.joinRoom(roomId);
         
         stompService.subscribe(`/topic/room.${roomId}.chat`, (stompMessage) => {
             const chatMsg = JSON.parse(stompMessage.body) as ChatMessage;
@@ -113,7 +113,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     unsubscribeFromRoom: (roomId) => {
-        stompService.publish('/app/room.leave', { roomId });
+        stompService.leaveRoom(roomId);
         stompService.unsubscribe(`/topic/room.${roomId}.chat`);
         stompService.unsubscribe(`/topic/room.${roomId}.chat.delete`);
         stompService.unsubscribe(`/topic/room.${roomId}.presence`);

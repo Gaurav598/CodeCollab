@@ -5,17 +5,31 @@ import { useAuthStore } from '@/store/authStore';
 import { useWebRTCStore } from '@/store/webrtcStore';
 import { stompService } from '@/services/stompClient';
 import { canUseMedia } from '@/utils/permissions';
+import type { MediaMids } from '@/store/webrtcStore';
 
 export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomId: string, userRole?: string }) {
     const currentUser = useAuthStore(state => state.user);
     const pendingCandidates = useRef<Record<string, any[]>>({});
+    const seenCandidates = useRef<Record<string, Set<string>>>({});
+    const remoteIceUfrags = useRef<Record<string, string>>({});
 
     useEffect(() => {
-        if (!currentUser?.id || !roomId) return;
+        if (!currentUser?.id || !roomId || !canUseMedia(userRole)) return;
 
-        const subSignal = stompService.subscribe(`/user/queue/webrtc.signal`, async (msg) => {
+        const beginRemoteIceGeneration = (userId: string, description: RTCSessionDescriptionInit) => {
+            const nextUfrag = description.sdp?.match(/^a=ice-ufrag:(.+)$/m)?.[1]?.trim();
+            if (!nextUfrag || remoteIceUfrags.current[userId] === nextUfrag) return;
+
+            remoteIceUfrags.current[userId] = nextUfrag;
+            seenCandidates.current[userId] = new Set();
+            pendingCandidates.current[userId] = (pendingCandidates.current[userId] || []).filter(candidate =>
+                !candidate?.usernameFragment || candidate.usernameFragment === nextUfrag
+            );
+        };
+
+        const handleSignal = async (msg: import('@stomp/stompjs').IMessage) => {
             const data = JSON.parse(msg.body);
-            const { targetUserId, type, payload, roomId: msgRoomId } = data;
+            const { type, payload, roomId: msgRoomId } = data;
             const senderId = data.senderId || data.userId; 
 
             if (msgRoomId !== roomId) return;
@@ -26,30 +40,23 @@ export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomI
                 if (!pendingCandidates.current[senderId]) {
                     pendingCandidates.current[senderId] = [];
                 }
+                if (!seenCandidates.current[senderId]) {
+                    seenCandidates.current[senderId] = new Set();
+                }
 
                 if (type === 'OFFER') {
                     if (!pc) {
                         pc = useWebRTCStore.getState().createPeerConnection(senderId, false, roomId);
                     }
-                    await pc.setRemoteDescription(new RTCSessionDescription(payload));
+                    const description = payload?.description ?? payload;
+                    const mediaMids: MediaMids = payload?.mediaMids ?? {};
+                    beginRemoteIceGeneration(senderId, description);
+                    useWebRTCStore.getState().setRemoteMediaMids(senderId, mediaMids);
+                    await pc.setRemoteDescription(new RTCSessionDescription(description));
                     
                     // The browser just created transceivers based on the offer. Attach local tracks to them.
                     const transceivers = pc.getTransceivers();
-                    const localStream = useWebRTCStore.getState().localStream;
-                    const localScreenStream = useWebRTCStore.getState().localScreenStream;
-                    
-                    if (transceivers[0] && localStream) {
-                        const audioTrack = localStream.getAudioTracks()[0];
-                        if (audioTrack) transceivers[0].sender.replaceTrack(audioTrack);
-                    }
-                    if (transceivers[1] && localStream) {
-                        const videoTrack = localStream.getVideoTracks()[0];
-                        if (videoTrack) transceivers[1].sender.replaceTrack(videoTrack);
-                    }
-                    if (transceivers[2] && localScreenStream) {
-                        const screenTrack = localScreenStream.getVideoTracks()[0];
-                        if (screenTrack) transceivers[2].sender.replaceTrack(screenTrack);
-                    }
+                    await useWebRTCStore.getState().attachLocalTracks(senderId, mediaMids);
                     
                     // Force all transceivers to 'sendrecv' so the answer includes a=sendrecv
                     // This is crucial because setRemoteDescription defaults them to recvonly if no track was provided initially
@@ -61,7 +68,7 @@ export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomI
                     
                     while (pendingCandidates.current[senderId].length > 0) {
                         const candidate = pendingCandidates.current[senderId].shift();
-                        pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn("Failed to add queued ICE:", e));
+                        await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn("Failed to add queued ICE:", e));
                     }
 
                     const answer = await pc.createAnswer();
@@ -70,29 +77,45 @@ export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomI
                         targetUserId: senderId,
                         roomId,
                         type: 'ANSWER',
-                        payload: pc.localDescription
+                        payload: { description: pc.localDescription, mediaMids }
                     });
                 } else if (type === 'ANSWER') {
                     if (pc) {
-                        await pc.setRemoteDescription(new RTCSessionDescription(payload));
+                        const description = payload?.description ?? payload;
+                        const mediaMids: MediaMids = payload?.mediaMids ?? useWebRTCStore.getState().remoteMediaMids[senderId] ?? {};
+                        beginRemoteIceGeneration(senderId, description);
+                        useWebRTCStore.getState().setRemoteMediaMids(senderId, mediaMids);
+                        if (pc.signalingState !== 'stable') {
+                            await pc.setRemoteDescription(new RTCSessionDescription(description));
+                        }
                         while (pendingCandidates.current[senderId].length > 0) {
                             const candidate = pendingCandidates.current[senderId].shift();
-                            pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn("Failed to add queued ICE:", e));
+                            await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn("Failed to add queued ICE:", e));
                         }
                     }
                 } else if (type === 'ICE') {
+                    const remoteUfrag = remoteIceUfrags.current[senderId];
+                    if (remoteUfrag && payload?.usernameFragment && payload.usernameFragment !== remoteUfrag) {
+                        return;
+                    }
+                    const candidateKey = `${payload?.usernameFragment || remoteUfrag || 'unknown'}:${JSON.stringify(payload)}`;
+                    if (seenCandidates.current[senderId].has(candidateKey)) return;
+                    seenCandidates.current[senderId].add(candidateKey);
                     if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-                        pc.addIceCandidate(new RTCIceCandidate(payload)).catch(e => console.warn("Failed to add ICE:", e));
+                        await pc.addIceCandidate(new RTCIceCandidate(payload)).catch(e => console.warn("Failed to add ICE:", e));
                     } else {
-                        pendingCandidates.current[senderId].push(payload);
+                        if (pendingCandidates.current[senderId].length < 128) {
+                            pendingCandidates.current[senderId].push(payload);
+                        }
                     }
                 }
             } catch (err) {
                 console.error('[WebRTC] Signaling error', err);
             }
-        });
+        };
+        stompService.subscribe(`/user/queue/webrtc.signal`, handleSignal);
 
-        const subVideoPresence = stompService.subscribe(`/topic/room.${roomId}.video.presence`, (msg) => {
+        const handleVideoPresence = (msg: import('@stomp/stompjs').IMessage) => {
             const data = JSON.parse(msg.body);
             const { userId, type } = data;
 
@@ -107,7 +130,8 @@ export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomI
                 useWebRTCStore.getState().setRemoteScreenShare(userId, false);
             } else if (type === 'JOINED') {
                 // Tell the new user our current mute state immediately
-                stompService.publish(`/topic/room.${roomId}.video.presence`, { 
+                stompService.publish('/app/video.presence', {
+                    roomId,
                     type: 'MEDIA_STATE', 
                     userId: currentUser?.id, 
                     isVideoMuted: useWebRTCStore.getState().isVideoMuted,
@@ -115,7 +139,7 @@ export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomI
                 });
                 // Also tell them if we are screen sharing
                 if (useWebRTCStore.getState().isScreenSharing) {
-                    stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'SCREEN_SHARE_START', userId: currentUser?.id });
+                    stompService.publish('/app/video.presence', { roomId, type: 'SCREEN_SHARE_START' });
                 }
                 
                 if (currentUser!.id > userId) {
@@ -123,7 +147,7 @@ export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomI
                         useWebRTCStore.getState().createPeerConnection(userId, true, roomId);
                     }
                 } else {
-                    stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'PRESENT', userId: currentUser?.id });
+                    stompService.publish('/app/video.presence', { roomId, type: 'PRESENT' });
                 }
             } else if (type === 'PRESENT') {
                 if (currentUser!.id > userId) {
@@ -135,26 +159,43 @@ export function WebRTCConnectionHandler({ roomId, userRole = 'editor' }: { roomI
                 useWebRTCStore.getState().removePeerConnection(userId);
                 useWebRTCStore.getState().removeRemoteStream(userId);
                 useWebRTCStore.getState().setRemoteScreenShare(userId, false);
+                delete pendingCandidates.current[userId];
+                delete seenCandidates.current[userId];
+                delete remoteIceUfrags.current[userId];
             }
-        });
+        };
+        stompService.subscribe(`/topic/room.${roomId}.video.presence`, handleVideoPresence);
 
-        const joinTimeout = setTimeout(() => {
-            stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'JOINED', userId: currentUser?.id });
-        }, 300);
+        const announcePresence = () => {
+            const state = useWebRTCStore.getState();
+            Object.keys(state.peerConnections).forEach(userId => {
+                state.removePeerConnection(userId);
+                state.removeRemoteStream(userId);
+                state.setRemoteScreenShare(userId, false);
+            });
+            pendingCandidates.current = {};
+            seenCandidates.current = {};
+            remoteIceUfrags.current = {};
+            stompService.publish('/app/video.presence', { roomId, type: 'JOINED' });
+        };
+        const unsubscribeConnected = stompService.onConnected(announcePresence);
 
         return () => {
-            clearTimeout(joinTimeout);
-            stompService.publish(`/topic/room.${roomId}.video.presence`, { type: 'LEFT', userId: currentUser?.id });
-            stompService.unsubscribe(`/user/queue/webrtc.signal`);
-            stompService.unsubscribe(`/topic/room.${roomId}.video.presence`);
+            unsubscribeConnected();
+            stompService.publish('/app/video.presence', { roomId, type: 'LEFT' });
+            stompService.unsubscribe(`/user/queue/webrtc.signal`, handleSignal);
+            stompService.unsubscribe(`/topic/room.${roomId}.video.presence`, handleVideoPresence);
 
             const { peerConnections, removePeerConnection, removeRemoteStream } = useWebRTCStore.getState();
             Object.keys(peerConnections).forEach(userId => {
                 removePeerConnection(userId);
                 removeRemoteStream(userId);
             });
+            pendingCandidates.current = {};
+            seenCandidates.current = {};
+            remoteIceUfrags.current = {};
         };
-    }, [roomId, currentUser?.id]);
+    }, [roomId, currentUser?.id, userRole]);
 
     return null;
 }

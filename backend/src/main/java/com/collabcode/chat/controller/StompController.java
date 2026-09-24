@@ -17,6 +17,7 @@ import com.collabcode.chat.service.PresenceService;
 import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 
 @Controller
 public class StompController {
@@ -121,13 +122,26 @@ public class StompController {
             UUID targetId = parseUuid(targetUserId, "targetUserId");
             UUID roomId = parseUuid((String) payload.get("roomId"), "roomId");
 
-            roomAccessService.requireMember(roomId, user.getId());
-            roomAccessService.requireMember(roomId, targetId);
+            // Viewers may observe documents but cannot join the media mesh or
+            // use signaling as an arbitrary relay.
+            roomAccessService.requireEditor(roomId, user.getId());
+            roomAccessService.requireEditor(roomId, targetId);
+            if (user.getId().equals(targetId)) {
+                throw ApiException.badRequest("INVALID_PAYLOAD", "Cannot signal yourself");
+            }
+            String type = payload.get("type") instanceof String value ? value : "";
+            if (!Set.of("OFFER", "ANSWER", "ICE").contains(type)) {
+                throw ApiException.badRequest("INVALID_PAYLOAD", "Unsupported WebRTC signal type");
+            }
+            Object signalPayload = payload.get("payload");
+            if (signalPayload == null || signalPayload.toString().length() > 131_072) {
+                throw ApiException.badRequest("INVALID_PAYLOAD", "WebRTC signal payload is missing or too large");
+            }
 
             Map<String, Object> forwardedPayload = Map.of(
                 "senderId", user.getId().toString(),
-                "type", payload.get("type"),
-                "payload", payload.get("payload"),
+                "type", type,
+                "payload", signalPayload,
                 "roomId", roomId.toString()
             );
 
@@ -136,6 +150,29 @@ public class StompController {
             logger.error("Error processing webrtc.signal", e);
             throw e;
         }
+    }
+
+    @MessageMapping("/video.presence")
+    public void videoPresence(@Payload Map<String, Object> payload, Principal principal) {
+        CollabUserDetails user = getUser(principal);
+        UUID roomId = parseUuid((String) payload.get("roomId"), "roomId");
+        roomAccessService.requireEditor(roomId, user.getId());
+
+        String type = payload.get("type") instanceof String value ? value : "";
+        Set<String> allowedTypes = Set.of(
+                "JOINED", "PRESENT", "LEFT", "MEDIA_STATE", "VIDEO_STATE",
+                "SCREEN_SHARE_START", "SCREEN_SHARE_STOP");
+        if (!allowedTypes.contains(type)) {
+            throw ApiException.badRequest("INVALID_PAYLOAD", "Unsupported video presence event");
+        }
+
+        Map<String, Object> forwarded = new java.util.HashMap<>();
+        forwarded.put("roomId", roomId.toString());
+        forwarded.put("userId", user.getId().toString());
+        forwarded.put("type", type);
+        if (payload.get("isVideoMuted") instanceof Boolean value) forwarded.put("isVideoMuted", value);
+        if (payload.get("isAudioMuted") instanceof Boolean value) forwarded.put("isAudioMuted", value);
+        messagingTemplate.convertAndSend("/topic/room." + roomId + ".video.presence", forwarded);
     }
 
     private UUID parseUuid(String value, String fieldName) {

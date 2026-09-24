@@ -1,6 +1,7 @@
 package com.collabcode.config;
 
 import com.collabcode.auth.security.JwtAuthFilter;
+import com.collabcode.auth.security.CookieCsrfFilter;
 import com.collabcode.auth.security.JwtTokenProvider;
 import com.collabcode.auth.security.OAuth2SuccessHandler;
 import com.collabcode.auth.security.UserDetailsServiceImpl;
@@ -84,6 +85,7 @@ public class SecurityConfig {
                 .successHandler(oAuth2SuccessHandler)
             )
             .addFilterBefore(serviceJwtFilter(properties), UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(new CookieCsrfFilter(allowedOrigins, frontendUrl), UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -92,10 +94,20 @@ public class SecurityConfig {
     @Value("${ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}")
     private String allowedOrigins;
 
+    @Value("${collabcode.frontend-url:http://localhost:3000}")
+    private String frontendUrl;
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(Arrays.asList(allowedOrigins.split(",")));
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .toList();
+        if (origins.contains("*")) {
+            throw new IllegalStateException("ALLOWED_ORIGINS cannot contain * when credentials are enabled");
+        }
+        config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true); // required for httpOnly cookies
