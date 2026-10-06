@@ -277,7 +277,7 @@ export function CollabEditor({ roomId, userRole = "editor" }: CollabEditorProps)
           return { items: [], dispose: () => undefined };
         }
       },
-      disposeInlineCompletions: () => undefined,
+      freeInlineCompletions: () => undefined,
     });
 
     return () => {
