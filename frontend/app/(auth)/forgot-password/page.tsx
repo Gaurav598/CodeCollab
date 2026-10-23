@@ -48,7 +48,7 @@ export default function ForgotPasswordPage() {
           <X size={20} />
         </button>
         <div className="auth-logo">
-          <span className="auth-logo-text">CollabCode</span>
+          <span className="auth-logo-text">CodeCollab</span>
         </div>
 
         <h1 className="auth-title">Forgot Password</h1>

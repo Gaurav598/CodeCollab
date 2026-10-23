@@ -36,7 +36,7 @@ export function HomeNavbar() {
         <a
           href="/"
           className="group flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          aria-label="CollabCode — home"
+          aria-label="CodeCollab — home"
         >
           {/* Icon container */}
           <div
@@ -63,7 +63,7 @@ export function HomeNavbar() {
               backgroundImage: "linear-gradient(90deg, hsl(var(--foreground)) 0%, hsl(172 72% 55%) 100%)",
             }}
           >
-            CollabCode
+            CodeCollab
           </span>
         </a>
 

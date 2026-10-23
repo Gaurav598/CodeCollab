@@ -10,7 +10,7 @@ import { ServerPing } from "@/components/ui/ServerPing";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CollabCode — AI-Powered Developer Collaboration",
+  title: "CodeCollab — AI-Powered Developer Collaboration",
   description:
     "Real-time collaborative coding with AI assistance, CRDT-based sync, and secure execution sandboxes.",
 };

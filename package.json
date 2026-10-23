@@ -1,8 +1,8 @@
 {
-  "name": "collabcode",
+  "name": "codecollab",
   "version": "0.1.0",
   "private": true,
-  "description": "CollabCode monorepo foundation",
+  "description": "CodeCollab monorepo foundation",
   "scripts": {
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:sync": "npm --prefix sync-service run dev",

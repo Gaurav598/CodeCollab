@@ -1,6 +1,6 @@
 import { Code2 } from "lucide-react";
 
-/* Only links to routes that actually exist in CollabCode */
+/* Only links to routes that actually exist in CodeCollab */
 const NAV_LINKS = [
   { label: "Log in",    href: "/login" },
   { label: "Sign up",  href: "/register" },
@@ -28,7 +28,7 @@ export function HomeFooter() {
             >
               <Code2 size={14} className="text-primary" strokeWidth={2.5} />
             </div>
-            <span className="text-sm font-semibold text-foreground">CollabCode</span>
+            <span className="text-sm font-semibold text-foreground">CodeCollab</span>
           </div>
           <p className="text-xs text-muted-foreground/50">
             Real-time collaboration for developers.
@@ -53,7 +53,7 @@ export function HomeFooter() {
 
         {/* Copyright */}
         <p className="text-xs text-muted-foreground/35">
-          © {new Date().getFullYear()} CollabCode
+          © {new Date().getFullYear()} CodeCollab
         </p>
       </div>
     </footer>

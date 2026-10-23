@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Workspace | CollabCode",
+  title: "Workspace | CodeCollab",
 };
 
 export default function RoomLayout({

@@ -1,8 +1,8 @@
-# 🚀 CollabCode – AI-Powered Developer Collaboration Platform
+# 🚀 CodeCollab – AI-Powered Developer Collaboration Platform
 
 > An enterprise-grade, real-time collaborative coding environment built for modern remote teams.
 
-Inspired by Cursor, VS Code, Replit, and Live Share, CollabCode provides an immersive, multi-file workspace where developers can write, execute, and discuss code simultaneously with sub-millisecond latency.
+Inspired by Cursor, VS Code, Replit, and Live Share, CodeCollab provides an immersive, multi-file workspace where developers can write, execute, and discuss code simultaneously with sub-millisecond latency.
 
 ### 🌐 Live Demo
 👉 **[Try CodeCollab Now!](https://codecollab-phi.vercel.app)** 
@@ -131,7 +131,7 @@ graph TD
 ## 📂 Folder Structure
 
 ```text
-collabcode/
+CodeCollab/
 ├── backend/                  # Java 21, Spring Boot 3 API
 │   ├── src/main/java/com/collabcode/
 │   │   ├── ai/               # AI integrations
@@ -198,8 +198,8 @@ NEXT_PUBLIC_STOMP_WS_URL=ws://localhost:8080/ws
 
 **Clone the repository:**
 ```bash
-git clone https://github.com/yourusername/collabcode.git
-cd collabcode
+git clone https://github.com/Gaurav598/CodeCollab.git
+cd CodeCollab
 ```
 
 **Start the Infrastructure (Redis):**
@@ -259,7 +259,7 @@ npm run test            # Run Vitest tests
 
 ## ⚡ Realtime Collaboration Architecture
 
-CollabCode implements a robust CRDT (Conflict-free Replicated Data Type) architecture tailored for code editing:
+CodeCollab implements a robust CRDT (Conflict-free Replicated Data Type) architecture tailored for code editing:
 
 1. A user types in the **Monaco Editor**.
 2. **Yjs** calculates the exact delta of the change.

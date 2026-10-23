@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useInView } from "@/hooks/useScrollReveal";
 
-/* AI capabilities — every one exists in CollabCode's AI gateway */
+/* AI capabilities — every one exists in CodeCollab's AI gateway */
 const AI_CAPABILITIES = [
   {
     id: "autocomplete",

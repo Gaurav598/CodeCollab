@@ -75,7 +75,7 @@ export function HeroSection() {
       className="relative flex min-h-svh items-center overflow-hidden pt-16"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      aria-label="CollabCode — real-time collaborative IDE"
+      aria-label="CodeCollab — real-time collaborative IDE"
     >
 
 

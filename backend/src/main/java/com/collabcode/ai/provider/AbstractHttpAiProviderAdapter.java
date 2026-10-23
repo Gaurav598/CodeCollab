@@ -68,7 +68,7 @@ public abstract class AbstractHttpAiProviderAdapter implements AiProviderAdapter
 
     protected String renderPrompt(AiGatewayRequest request) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("You are CollabCode AI. Feature: ").append(request.feature()).append('\n');
+        prompt.append("You are CodeCollab AI. Feature: ").append(request.feature()).append('\n');
         prompt.append("Language: ").append(request.language()).append('\n');
         prompt.append("Path: ").append(request.path()).append("\n\n");
         if (request.instruction() != null && !request.instruction().isBlank()) {

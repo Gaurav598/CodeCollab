@@ -126,7 +126,7 @@ export default function ResetPasswordPage() {
     <main className="auth-page">
       <div className="auth-card">
         <div className="auth-logo">
-          <span className="auth-logo-text">CollabCode</span>
+          <span className="auth-logo-text">CodeCollab</span>
         </div>
 
         <h1 className="auth-title">Reset Password</h1>

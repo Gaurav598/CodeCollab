@@ -23,7 +23,7 @@ export function DashboardNav({ username, onLogout }: DashboardNavProps) {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 transition-transform hover:scale-105">
             <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-emerald-400">
-              CollabCode
+              CodeCollab
             </span>
           </Link>
 

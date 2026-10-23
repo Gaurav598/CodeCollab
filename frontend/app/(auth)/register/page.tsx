@@ -80,7 +80,7 @@ export default function RegisterPage() {
             <div className="mb-4 text-center">
               <Link href="/" className="inline-block transition-transform hover:scale-105">
                 <span className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-primary via-blue-400 to-emerald-400">
-                  CollabCode
+                  CodeCollab
                 </span>
               </Link>
               <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">

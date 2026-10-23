@@ -92,7 +92,7 @@ export function FeatureWorkflow() {
               className="mt-4 leading-relaxed text-muted-foreground"
               style={{ fontSize: "clamp(0.95rem, 1.4vw, 1.05rem)" }}
             >
-              CollabCode turns a team's entire development workflow into a Shared code editor, live cursors, video calls, Screen Share and real-time chat — all synchronized in a single room. No switching tools. No context loss.
+              CodeCollab turns a team's entire development workflow into a Shared code editor, live cursors, video calls, Screen Share and real-time chat — all synchronized in a single room. No switching tools. No context loss.
             </p>
           </div>
 

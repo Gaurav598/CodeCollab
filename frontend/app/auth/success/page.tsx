@@ -27,7 +27,7 @@ export default function AuthSuccessPage() {
     <main className="auth-page">
       <div className="auth-card" style={{ textAlign: "center" }}>
         <div className="auth-logo">
-          <span className="auth-logo-text">CollabCode</span>
+          <span className="auth-logo-text">CodeCollab</span>
         </div>
         <p style={{ marginTop: "1.5rem", color: "var(--muted-foreground)" }}>
           Signing you in…

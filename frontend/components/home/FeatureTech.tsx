@@ -2,7 +2,7 @@
 
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 
-/* Technologies that actually power CollabCode */
+/* Technologies that actually power CodeCollab */
 const TECH_NODES = [
   /* Core — inner ring */
   { id: "monaco",   label: "Monaco Editor",  icon: "⌨️", color: "hsl(172 72% 45%)", ring: "inner", angle: 0   },
@@ -218,7 +218,7 @@ export function FeatureTech() {
               className="mt-4 leading-relaxed text-muted-foreground"
               style={{ fontSize: "clamp(0.95rem, 1.4vw, 1.05rem)" }}
             >
-              Every technology in CollabCode was chosen for production reliability at scale. No experimental libraries. No fragile glue code.
+              Every technology in CodeCollab was chosen for production reliability at scale. No experimental libraries. No fragile glue code.
             </p>
 
             {/* Tech list */}

@@ -12,7 +12,7 @@ import { CtaSection }       from "@/components/home/CtaSection";
 import { HomeFooter }       from "@/components/home/HomeFooter";
 
 export const metadata = {
-  title: "CollabCode — Real-time Collaborative IDE",
+  title: "CodeCollab — Real-time Collaborative IDE",
   description:
     "A full-featured collaborative IDE with real-time CRDT sync, an AI assistant across 8 surfaces, sandboxed code execution in 6 languages, and WebRTC video calls — all in a single shared workspace.",
 };

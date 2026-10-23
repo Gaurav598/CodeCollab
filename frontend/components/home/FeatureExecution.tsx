@@ -46,7 +46,7 @@ const OUTPUTS: Record<typeof LANGUAGES[number]["name"], string[]> = {
     ">>> javac -cp . Solution.java",
     ">>> Running in JVM sandbox...",
     "",
-    "Hello from CollabCode ☕",
+    "Hello from CodeCollab ☕",
     "Result: [1, 1, 2, 3, 5, 8, 13]",
     "",
     "✓ Completed in 210ms · Exit 0",
@@ -245,7 +245,7 @@ export function FeatureExecution() {
                 <div className="h-3 w-3 rounded-full" style={{ background: "hsl(172 72% 45%)" }} />
               </div>
               <span className="text-[11px] font-semibold text-white/40">
-                CollabCode — {lang.emoji} {lang.name}
+                CodeCollab — {lang.emoji} {lang.name}
               </span>
               <div
                 className="ml-auto flex items-center gap-1.5 rounded px-2 py-0.5 text-[9px] font-bold"
@@ -273,7 +273,7 @@ export function FeatureExecution() {
               <div className="mb-1 flex items-center gap-2">
                 <span style={{ color: lang.color }}>$</span>
                 <span className="text-white/80">
-                  collabcode run {lang.ext.slice(1)} solution{lang.ext}
+                  codecollab run {lang.ext.slice(1)} solution{lang.ext}
                 </span>
               </div>
 
